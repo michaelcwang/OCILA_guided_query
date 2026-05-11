@@ -213,6 +213,12 @@ button:disabled {
   gap: 18px;
 }
 
+.panel-subsection {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
 .workspace-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr);
@@ -226,6 +232,22 @@ button:disabled {
   background: #fffdf9;
   border: 1px solid var(--line);
   overflow: auto;
+}
+
+.history-list {
+  min-height: 180px;
+  padding: 12px;
+  border-radius: 18px;
+  background: #fffdf9;
+  border: 1px solid var(--line);
+  overflow: auto;
+}
+
+.history-list.empty,
+.chart-wrap.empty {
+  color: var(--muted);
+  display: grid;
+  place-items: center;
 }
 
 .suggestion-list.empty,
@@ -244,6 +266,27 @@ button:disabled {
 
 .suggestion-item:last-child {
   border-bottom: 0;
+}
+
+.history-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid rgba(60, 44, 22, 0.08);
+}
+
+.history-item:last-child {
+  border-bottom: 0;
+}
+
+.history-title {
+  font-weight: 600;
+}
+
+.history-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .field-catalog {
@@ -300,6 +343,76 @@ button:disabled {
 .results-meta {
   color: var(--muted);
   font-size: 0.95rem;
+}
+
+.chart-wrap {
+  overflow: auto;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: #fffdf9;
+  min-height: 160px;
+  padding: 16px;
+}
+
+.chart-svg {
+  width: 100%;
+  min-width: 620px;
+  height: 260px;
+  display: block;
+}
+
+.chart-grid-line {
+  stroke: rgba(60, 44, 22, 0.12);
+  stroke-width: 1;
+}
+
+.chart-axis {
+  stroke: rgba(60, 44, 22, 0.35);
+  stroke-width: 1.2;
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.chart-bar {
+  fill: var(--accent-2);
+  opacity: 0.85;
+}
+
+.chart-point {
+  fill: var(--accent);
+}
+
+.chart-label {
+  fill: var(--muted);
+  font-size: 12px;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.metric-card {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px;
+  background: linear-gradient(180deg, #fffdf9 0%, #f8efe2 100%);
+}
+
+.metric-name {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.metric-value {
+  margin-top: 8px;
+  font-size: 2rem;
+  line-height: 1;
 }
 
 .results-table-wrap {

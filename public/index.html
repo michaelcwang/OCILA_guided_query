@@ -66,10 +66,26 @@
             <input id="filterTextInput" placeholder="Example: 'Log Source' = saas.fa_wls_access" />
           </label>
 
+          <label>
+            Visualization
+            <select id="visualizationSelect">
+              <option value="table">Table only</option>
+              <option value="line">Line chart</option>
+              <option value="bar">Bar chart</option>
+              <option value="metric">Metric cards</option>
+            </select>
+          </label>
+
           <div class="action-row">
             <button id="buildButton">Build Query</button>
             <button id="runButton" class="secondary">Run Query</button>
+            <button id="saveQueryButton" class="secondary">Save Query</button>
           </div>
+
+          <p class="helper-copy">
+            Visualization is stored as a local directive at the top of the query text and is removed
+            before the OCILA query is executed.
+          </p>
 
           <div class="template-hint">
             <h3>Suggested Fields</h3>
@@ -117,6 +133,13 @@
             <div>
               <h2>Suggestions</h2>
               <div id="suggestions" class="suggestion-list empty">Suggestions will appear here.</div>
+              <div class="panel-subsection">
+                <div class="panel-title-row">
+                  <h2>Saved Queries</h2>
+                  <button id="clearHistoryButton" class="secondary">Clear</button>
+                </div>
+                <div id="historyList" class="history-list empty">Saved queries will appear here.</div>
+              </div>
             </div>
           </div>
 
@@ -134,6 +157,7 @@
             </div>
           </div>
 
+          <div id="chartWrap" class="chart-wrap empty">Run a query to render a visualization.</div>
           <div id="resultsMeta" class="results-meta"></div>
           <div id="resultsTableWrap" class="results-table-wrap empty">Run a query to see results.</div>
         </section>

@@ -16,6 +16,9 @@ Local browser app for guided OCI Log Analytics investigations. The UI starts fro
   - Database ID lookup
   - API endpoint correlation
 - Query preview and manual editing
+- Local visualization directive in the query editor for table, line, bar, or metric views
+- Result visualization area for chart and metric rendering
+- Saved query history in browser local storage
 - Field and value suggestion endpoint
 - Custom field selector backed by Log Analytics field metadata
 - Mock mode for UI development without OCI credentials
