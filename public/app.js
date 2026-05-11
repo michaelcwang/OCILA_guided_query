@@ -6,6 +6,7 @@ const INLINE_HELP = {
     title: "Log Set / Pod",
     body: [
       "Use this as the first scope boundary. It should identify the pod, environment, or log collection you want to investigate.",
+      "You can enter multiple pods as a comma-separated list. The query builder will turn that into an OR filter across Log Set values.",
       "Starting with the wrong pod is one of the fastest ways to get misleading counts and false correlations.",
       "If you are comparing environments, save separate queries per pod instead of mixing them."
     ]

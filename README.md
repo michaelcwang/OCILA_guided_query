@@ -5,7 +5,7 @@ Local browser app for guided OCI Log Analytics investigations. The UI starts fro
 ## What this first version covers
 
 - Browser UI at `http://localhost:4310`
-- Freeform `Log Set` / pod entry with known log set suggestions
+- Freeform `Log Set` / pod entry with known log set suggestions and comma-separated multi-pod support
 - Guided templates for:
   - Fusion order validation
   - Fusion order throughput
