@@ -31,28 +31,78 @@
           </div>
 
           <label>
-            Log set / pod
+            <span class="label-row">
+              <span>Log set / pod</span>
+              <button
+                type="button"
+                class="help-button"
+                data-help-key="logSet"
+                aria-label="Help for log set or pod"
+              >
+                ?
+              </button>
+            </span>
             <input id="logSetInput" list="logSetOptions" placeholder="Type any pod / log set" />
             <datalist id="logSetOptions"></datalist>
           </label>
 
           <label>
-            Investigation goal
+            <span class="label-row">
+              <span>Investigation goal</span>
+              <button
+                type="button"
+                class="help-button"
+                data-help-key="template"
+                aria-label="Help for investigation goal"
+              >
+                ?
+              </button>
+            </span>
             <select id="templateSelect"></select>
           </label>
 
           <label>
-            Field for focused lookup
+            <span class="label-row">
+              <span>Field for focused lookup</span>
+              <button
+                type="button"
+                class="help-button"
+                data-help-key="field"
+                aria-label="Help for focused lookup field"
+              >
+                ?
+              </button>
+            </span>
             <select id="fieldSelect"></select>
           </label>
 
           <label>
-            Field value / endpoint / database ID
+            <span class="label-row">
+              <span>Field value / endpoint / database ID</span>
+              <button
+                type="button"
+                class="help-button"
+                data-help-key="fieldValue"
+                aria-label="Help for field value"
+              >
+                ?
+              </button>
+            </span>
             <input id="fieldValueInput" placeholder="Example: /fscmRestApi/resources/..." />
           </label>
 
           <label>
-            Time bucket
+            <span class="label-row">
+              <span>Time bucket</span>
+              <button
+                type="button"
+                class="help-button"
+                data-help-key="timeBucket"
+                aria-label="Help for time bucket"
+              >
+                ?
+              </button>
+            </span>
             <select id="timeSpanSelect">
               <option value="1minute">1 minute</option>
               <option value="5minute">5 minutes</option>
@@ -62,12 +112,32 @@
           </label>
 
           <label>
-            Extra filter text
+            <span class="label-row">
+              <span>Extra filter text</span>
+              <button
+                type="button"
+                class="help-button"
+                data-help-key="filterText"
+                aria-label="Help for extra filter text"
+              >
+                ?
+              </button>
+            </span>
             <input id="filterTextInput" placeholder="Example: 'Log Source' = saas.fa_wls_access" />
           </label>
 
           <label>
-            Visualization
+            <span class="label-row">
+              <span>Visualization</span>
+              <button
+                type="button"
+                class="help-button"
+                data-help-key="visualization"
+                aria-label="Help for visualization"
+              >
+                ?
+              </button>
+            </span>
             <select id="visualizationSelect">
               <option value="table">Table only</option>
               <option value="line">Line chart</option>
@@ -94,7 +164,17 @@
 
           <div class="template-hint">
             <div class="panel-title-row">
-              <h3>Custom Field Selection</h3>
+              <div class="title-with-help">
+                <h3>Custom Field Selection</h3>
+                <button
+                  type="button"
+                  class="help-button"
+                  data-help-key="customFields"
+                  aria-label="Help for custom field selection"
+                >
+                  ?
+                </button>
+              </div>
               <button id="applyFieldsButton" class="secondary">Apply Fields</button>
             </div>
             <p class="helper-copy" id="fieldSummaryText"></p>
@@ -118,6 +198,21 @@
             <div id="selectedFields" class="chip-row empty-chip-row">No custom fields selected.</div>
             <div id="fieldCatalog" class="field-catalog"></div>
           </div>
+
+          <div class="template-hint">
+            <div class="title-with-help">
+              <h3>Sensitive Data Guidance</h3>
+              <button
+                type="button"
+                class="help-button"
+                data-help-key="sensitiveData"
+                aria-label="Help for sensitive data guidance"
+              >
+                ?
+              </button>
+            </div>
+            <div id="sensitiveDataNote" class="sensitive-note"></div>
+          </div>
         </section>
 
         <section class="panel workspace">
@@ -139,6 +234,11 @@
                   <button id="clearHistoryButton" class="secondary">Clear</button>
                 </div>
                 <div id="historyList" class="history-list empty">Saved queries will appear here.</div>
+              </div>
+              <div class="panel-subsection">
+                <h2>Training Guide</h2>
+                <div id="templateHelp" class="help-card"></div>
+                <div id="glossaryHelp" class="help-card"></div>
               </div>
             </div>
           </div>
@@ -163,6 +263,14 @@
         </section>
       </main>
     </div>
+
+    <dialog id="helpDialog" class="help-dialog">
+      <div class="help-dialog-header">
+        <h2 id="helpDialogTitle">Help</h2>
+        <button id="closeHelpDialogButton" type="button" class="secondary">Close</button>
+      </div>
+      <div id="helpDialogBody" class="help-dialog-body"></div>
+    </dialog>
 
     <script type="module" src="/app.js"></script>
   </body>

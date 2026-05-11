@@ -1,6 +1,73 @@
 const QUERY_HISTORY_KEY = "ocila-guided-query-history-v1";
 const HISTORY_LIMIT = 25;
 const VISUALIZATION_RE = /^\s*--\s*@visualization:\s*(table|line|bar|metric)\s*\r?\n?/i;
+const INLINE_HELP = {
+  logSet: {
+    title: "Log Set / Pod",
+    body: [
+      "Use this as the first scope boundary. It should identify the pod, environment, or log collection you want to investigate.",
+      "Starting with the wrong pod is one of the fastest ways to get misleading counts and false correlations.",
+      "If you are comparing environments, save separate queries per pod instead of mixing them."
+    ]
+  },
+  template: {
+    title: "Investigation Goal",
+    body: [
+      "Templates are training wheels plus a starting query. They are meant to answer a specific operational question, not just return raw data.",
+      "Choose the template that is closest to the symptom you are troubleshooting, then refine with filters and fields."
+    ]
+  },
+  field: {
+    title: "Focused Lookup Field",
+    body: [
+      "This is the field you want to anchor on when searching for a specific database ID, endpoint, user, host, or other dimension.",
+      "Good lookup fields are indexed or facet-eligible because they narrow the result set quickly."
+    ]
+  },
+  fieldValue: {
+    title: "Field Value",
+    body: [
+      "Use this for the exact ID or pattern you care about, such as a database identifier, URI prefix, or host name.",
+      "When the value varies but shares a common prefix, use a pattern-friendly field and let the generated query use like matching."
+    ]
+  },
+  timeBucket: {
+    title: "Time Bucket",
+    body: [
+      "Short buckets show spikes and bursts. Larger buckets smooth the noise and are better for longer investigations.",
+      "If a trend looks flat, the bucket may be too large and averaging away the signal."
+    ]
+  },
+  filterText: {
+    title: "Extra Filter Text",
+    body: [
+      "Use this for small targeted constraints after the template is built, such as one Log Source, Status, DBName, or Host.",
+      "Prefer narrow filters first. Over-filtering too early can hide the signal you are trying to learn from."
+    ]
+  },
+  visualization: {
+    title: "Visualization",
+    body: [
+      "Visualization is stored as a local directive in the editor so the app can remember how to display the results.",
+      "The directive is stripped before the OCILA query runs, so it does not rely on OCILA understanding chart syntax."
+    ]
+  },
+  customFields: {
+    title: "Custom Field Selection",
+    body: [
+      "Use this catalog to choose fields you want kept in the result output or emphasized in your analysis.",
+      "Indexed, facet-eligible, summarizable, and metric-eligible tags help you choose fields that are more useful operationally."
+    ]
+  },
+  sensitiveData: {
+    title: "Sensitive Data / PII",
+    body: [
+      "Treat masking as an ingestion and source-design concern, not a last-minute query concern.",
+      "If sensitive values are already indexed in clear text, query design alone is not sufficient protection.",
+      "Use dedicated log groups, strict IAM, and source-side masking for high-risk logs."
+    ]
+  }
+};
 
 const state = {
   logSets: [],
@@ -9,7 +76,9 @@ const state = {
   fieldSummary: null,
   mockMode: true,
   selectedFields: [],
-  savedQueries: []
+  savedQueries: [],
+  templateGuides: [],
+  glossaryEntries: []
 };
 
 const els = {
@@ -39,6 +108,13 @@ const els = {
   fieldCatalog: document.querySelector("#fieldCatalog"),
   suggestions: document.querySelector("#suggestions"),
   historyList: document.querySelector("#historyList"),
+  templateHelp: document.querySelector("#templateHelp"),
+  glossaryHelp: document.querySelector("#glossaryHelp"),
+  sensitiveDataNote: document.querySelector("#sensitiveDataNote"),
+  helpDialog: document.querySelector("#helpDialog"),
+  helpDialogTitle: document.querySelector("#helpDialogTitle"),
+  helpDialogBody: document.querySelector("#helpDialogBody"),
+  closeHelpDialogButton: document.querySelector("#closeHelpDialogButton"),
   chartWrap: document.querySelector("#chartWrap"),
   resultsMeta: document.querySelector("#resultsMeta"),
   resultsTableWrap: document.querySelector("#resultsTableWrap"),
@@ -90,6 +166,13 @@ function syncVisualizationSelectionFromEditor() {
 
 function currentVisualization() {
   return parseVisualizationDirective(els.queryEditor.value) || els.visualizationSelect.value;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }
 
 function populateSelect(selectEl, items, mapper) {
@@ -607,6 +690,136 @@ function currentTemplate() {
   return state.templates.find((item) => item.id === els.templateSelect.value);
 }
 
+function currentTemplateGuide() {
+  return state.templateGuides.find((item) => item.id === els.templateSelect.value) || null;
+}
+
+function detectGlossaryEntries(queryText) {
+  const normalized = queryText.toLowerCase();
+  return state.glossaryEntries.filter((entry) =>
+    (entry.aliases || []).some((alias) => normalized.includes(alias.toLowerCase()))
+  );
+}
+
+function renderHelpList(items) {
+  if (!items?.length) {
+    return `<p class="helper-copy">No items yet.</p>`;
+  }
+
+  return `<ul class="help-list">${items
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .join("")}</ul>`;
+}
+
+function renderReadingSteps(steps) {
+  if (!steps?.length) {
+    return `<p class="helper-copy">No walkthrough is available for this template yet.</p>`;
+  }
+
+  return `<div class="help-section">${steps
+    .map(
+      (step) => `
+        <div>
+          <div class="help-title">${escapeHtml(step.label)}</div>
+          <div class="helper-copy">${escapeHtml(step.explanation)}</div>
+        </div>
+      `
+    )
+    .join("")}</div>`;
+}
+
+function renderTemplateHelp() {
+  const guide = currentTemplateGuide();
+
+  if (!guide) {
+    els.templateHelp.innerHTML = `<div class="helper-copy">No template-specific help is available yet.</div>`;
+    return;
+  }
+
+  els.templateHelp.innerHTML = `
+    <div class="help-section">
+      <div class="help-title">What This Query Helps You Answer</div>
+      <div class="helper-copy">${escapeHtml(guide.analystGoal)}</div>
+    </div>
+    <div class="help-section">
+      <div class="help-title">Use It When</div>
+      ${renderHelpList(guide.useWhen)}
+    </div>
+    <div class="help-section">
+      <div class="help-title">How To Read The Query</div>
+      ${renderReadingSteps(guide.readingSteps)}
+    </div>
+    <div class="help-section">
+      <div class="help-title">Signals To Watch</div>
+      ${renderHelpList(guide.signals)}
+    </div>
+    <div class="help-section">
+      <div class="help-title">Suggested Follow-Up</div>
+      ${renderHelpList(guide.followUps)}
+    </div>
+  `;
+}
+
+function renderGlossaryHelp() {
+  const detected = detectGlossaryEntries(stripVisualizationDirective(els.queryEditor.value));
+
+  if (!detected.length) {
+    els.glossaryHelp.innerHTML = `
+      <div class="help-title">Detected Query Concepts</div>
+      <div class="helper-copy">Build or edit a query to see operator explanations here.</div>
+    `;
+    return;
+  }
+
+  els.glossaryHelp.innerHTML = `
+    <div class="help-title">Detected Query Concepts</div>
+    ${detected
+      .map(
+        (entry) => `
+          <div class="glossary-term">
+            <div class="help-title">${escapeHtml(entry.term)} <span class="helper-copy">(${escapeHtml(
+              entry.category
+            )})</span></div>
+            <div class="helper-copy">${escapeHtml(entry.description)}</div>
+          </div>
+        `
+      )
+      .join("")}
+  `;
+}
+
+function renderTrainingGuide() {
+  renderTemplateHelp();
+  renderGlossaryHelp();
+}
+
+function renderSensitiveDataNote() {
+  els.sensitiveDataNote.innerHTML = `
+    <div class="help-title">Mask before analysts query it</div>
+    <div class="helper-copy">
+      OCILA query text in this app is for analysis, not for retroactive redaction. Use source-side data
+      filters and masking policy for logs that may contain PII, secrets, or regulated identifiers.
+    </div>
+    <div class="helper-copy">
+      This app will surface guidance and training, but it does not replace ingestion-time masking or IAM
+      controls.
+    </div>
+  `;
+}
+
+function openHelpDialog(helpKey) {
+  const item = INLINE_HELP[helpKey];
+  if (!item) {
+    return;
+  }
+
+  els.helpDialogTitle.textContent = item.title;
+  els.helpDialogBody.innerHTML = item.body
+    .map((paragraph) => `<div class="helper-copy">${escapeHtml(paragraph)}</div>`)
+    .join("");
+  els.helpDialog.showModal();
+}
+
 function fetchSavedQueries() {
   try {
     return JSON.parse(localStorage.getItem(QUERY_HISTORY_KEY) || "[]");
@@ -708,6 +921,7 @@ function loadSavedQuery(id) {
   renderSelectedFields();
   renderFieldCatalog();
   syncVisualizationSelectionFromEditor();
+  renderTrainingGuide();
   els.resultsMeta.textContent = `Loaded saved query from ${formatSavedAt(item.savedAt)}.`;
 }
 
@@ -765,6 +979,22 @@ async function fetchJson(url, options = {}) {
   return data;
 }
 
+async function loadHelpContent() {
+  try {
+    const [templateGuides, glossaryEntries] = await Promise.all([
+      fetchJson("/help/template-guides.json"),
+      fetchJson("/help/query-glossary.json")
+    ]);
+    state.templateGuides = templateGuides;
+    state.glossaryEntries = glossaryEntries;
+  } catch {
+    state.templateGuides = [];
+    state.glossaryEntries = [];
+  }
+
+  renderTrainingGuide();
+}
+
 async function bootstrap() {
   setStatus("Loading metadata", "Connecting to backend");
 
@@ -793,6 +1023,8 @@ async function bootstrap() {
   renderSelectedFields();
   renderFieldCatalog();
   renderHistory();
+  renderTrainingGuide();
+  renderSensitiveDataNote();
   setStatus(state.mockMode ? "Mock Mode" : "OCI Mode", "Metadata ready");
 }
 
@@ -816,6 +1048,7 @@ async function buildTemplateQuery() {
     `${data.query}${selectedFieldsClause}`,
     els.visualizationSelect.value
   );
+  renderTrainingGuide();
   els.resultsMeta.textContent = currentTemplate()?.description || "";
 }
 
@@ -871,6 +1104,7 @@ function applySelectedFields() {
     `${stripped}${clause}`.trim(),
     els.visualizationSelect.value
   );
+  renderTrainingGuide();
 }
 
 function loadSavedQueries() {
@@ -888,13 +1122,28 @@ els.refreshButton.addEventListener("click", async () => {
 
 els.templateSelect.addEventListener("change", () => {
   renderSuggestedFields(currentTemplate());
+  renderTrainingGuide();
+});
+
+document.querySelectorAll(".help-button").forEach((button) => {
+  button.addEventListener("click", () => {
+    openHelpDialog(button.dataset.helpKey);
+  });
+});
+
+els.closeHelpDialogButton.addEventListener("click", () => {
+  els.helpDialog.close();
 });
 
 els.visualizationSelect.addEventListener("change", () => {
   els.queryEditor.value = applyVisualizationDirective(els.queryEditor.value, els.visualizationSelect.value);
+  renderTrainingGuide();
 });
 
-els.queryEditor.addEventListener("input", syncVisualizationSelectionFromEditor);
+els.queryEditor.addEventListener("input", () => {
+  syncVisualizationSelectionFromEditor();
+  renderTrainingGuide();
+});
 els.fieldSearchInput.addEventListener("input", renderFieldCatalog);
 els.fieldOptionFilter.addEventListener("change", renderFieldCatalog);
 
@@ -921,6 +1170,7 @@ els.suggestButton.addEventListener("click", async () => {
 
 formatNowRange();
 loadSavedQueries();
+loadHelpContent();
 
 bootstrap()
   .then(buildTemplateQuery)

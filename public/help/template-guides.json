@@ -1,0 +1,258 @@
+[
+  {
+    "id": "fusion-order-validation",
+    "analystGoal": "Confirm whether orders are flowing through the expected Fusion components and where time is being spent.",
+    "useWhen": [
+      "Users say orders are slow or missing.",
+      "You need to compare submission count against downstream processing count.",
+      "You want one time-series view across appslogger, wsasync, and access logs."
+    ],
+    "readingSteps": [
+      {
+        "label": "Start at the pod",
+        "explanation": "The query begins by constraining the search to one Log Set so you do not mix traffic from different pods or environments."
+      },
+      {
+        "label": "Pull three log sources together",
+        "explanation": "It unions the Fusion application logger, web access logs, and async orchestration logs so you can correlate activity across system boundaries."
+      },
+      {
+        "label": "Bucket by time",
+        "explanation": "The 1 minute link span turns raw events into a minute-by-minute trend so volume changes and spikes stand out."
+      },
+      {
+        "label": "Build derived metrics",
+        "explanation": "Each addfields block creates one metric, such as orders submitted, DSP operations, search calls, orchestration steps, or timeouts."
+      }
+    ],
+    "signals": [
+      "Orders Submitted rising while Orchestration steps processed stays flat suggests downstream backlog.",
+      "High Orders API response time with increased timeouts points to API or dependency saturation.",
+      "Search API calls rising faster than order volume may indicate retries or inefficient enrichment."
+    ],
+    "followUps": [
+      "Filter to one ECID or order identifier if aggregate counts show divergence.",
+      "Drill into access log status codes if timeout count grows.",
+      "Compare the same pod over a healthy time window to establish normal ratios."
+    ]
+  },
+  {
+    "id": "fusion-order-throughput",
+    "analystGoal": "Measure throughput across the order submit and orchestration path and detect where volume is dropping.",
+    "useWhen": [
+      "You need to know whether throughput degradation is at ingest, orchestration, or search stages.",
+      "You want to trend successful order creation over time.",
+      "You are validating whether a pod can keep up with incoming order traffic."
+    ],
+    "readingSteps": [
+      {
+        "label": "Count successful submits",
+        "explanation": "The POST plus status 201 filter isolates successful order submissions instead of all calls."
+      },
+      {
+        "label": "Track downstream work",
+        "explanation": "DSP operations, search calls, and orchestration steps represent work that should roughly track incoming orders."
+      },
+      {
+        "label": "Watch latency next to throughput",
+        "explanation": "Average processing duration and API response time show whether the system is keeping up or falling behind."
+      }
+    ],
+    "signals": [
+      "Orders Submitted holding steady while orchestration processing time rises suggests capacity pressure.",
+      "Fewer DSP operations than orders submitted indicates incomplete downstream progression.",
+      "Search API performance worsening at the same time as throughput drop can explain backlog."
+    ],
+    "followUps": [
+      "Split by source or status code if a single integration is flooding traffic.",
+      "Correlate with blocking sessions or slow SQL if latency rises without volume growth.",
+      "Use a line chart first, then save a metric view for at-a-glance monitoring."
+    ]
+  },
+  {
+    "id": "slow-db-queries",
+    "analystGoal": "Find the SQL statements contributing most to database latency.",
+    "useWhen": [
+      "Users report slowness and you need to identify expensive SQL IDs.",
+      "A database tier looks healthy on CPU but response times are still high.",
+      "You want the top statements by average and max elapsed time."
+    ],
+    "readingSteps": [
+      {
+        "label": "Stay inside one pod or log set",
+        "explanation": "The pod-level filter keeps the workload context consistent."
+      },
+      {
+        "label": "Trend then aggregate",
+        "explanation": "The time link span organizes activity into buckets before the stats clause computes summary values."
+      },
+      {
+        "label": "Group by SQL_ID and DBName",
+        "explanation": "Grouping tells you which statement on which database is contributing the most elapsed time."
+      }
+    ],
+    "signals": [
+      "High average elapsed time with many executions is usually more urgent than a single high max elapsed event.",
+      "One SQL_ID dominating multiple pods may point to application code or plan issues.",
+      "Large max elapsed with low execution count often indicates intermittent blocking or plan instability."
+    ],
+    "followUps": [
+      "Pivot to blocking sessions if max elapsed spikes are isolated.",
+      "Use DatabaseId or DBSystemId filters to separate shared services.",
+      "Save both a bar chart and a table view to compare hot SQL quickly."
+    ]
+  },
+  {
+    "id": "db-connections",
+    "analystGoal": "Trend active session or connection volume over time.",
+    "useWhen": [
+      "You suspect connection storms, leaks, or pool exhaustion.",
+      "You need to see whether session count tracks user activity.",
+      "You are checking the effect of a release or scheduled batch."
+    ],
+    "readingSteps": [
+      {
+        "label": "Count distinct sessions",
+        "explanation": "count_distinct(SessionId) avoids inflating the metric when one session emits multiple events."
+      },
+      {
+        "label": "Trend by time",
+        "explanation": "Grouping by Time is what makes this query suitable for a line chart."
+      }
+    ],
+    "signals": [
+      "A rapid vertical jump in active sessions often indicates a burst or leak.",
+      "Flat sessions with rising latency usually means the bottleneck is elsewhere.",
+      "Sessions rising while throughput falls suggests the system is stuck on work, not idle."
+    ],
+    "followUps": [
+      "Add DBUser or ClientHost filters to isolate a noisy caller.",
+      "Compare with blocking sessions if sessions rise without transaction completion.",
+      "Shorten the time bucket if spikes are being averaged away."
+    ]
+  },
+  {
+    "id": "app-uptime",
+    "analystGoal": "Estimate service health and uptime from heartbeat-style events.",
+    "useWhen": [
+      "You need a rough uptime indicator from logs rather than external monitoring.",
+      "Health checks or status transitions are recorded in application logs.",
+      "You want to compare healthy and unhealthy signals over time."
+    ],
+    "readingSteps": [
+      {
+        "label": "Look for health language",
+        "explanation": "The query turns messages such as healthy and unhealthy into simple counts."
+      },
+      {
+        "label": "Compare healthy vs unhealthy counts",
+        "explanation": "The addfields blocks create two series so you can see whether the balance changes."
+      }
+    ],
+    "signals": [
+      "Missing healthy signals may be as important as explicit down signals.",
+      "Repeated unhealthy bursts with recovery suggest instability rather than outage.",
+      "A sudden change on one host usually points to a localized deployment or infrastructure issue."
+    ],
+    "followUps": [
+      "Filter by Host to find whether the issue is isolated.",
+      "Save a metric view for quick daily checks.",
+      "Augment with access log status trends if uptime is user-visible."
+    ]
+  },
+  {
+    "id": "blocking-sessions",
+    "analystGoal": "Identify sessions that are blocking other work and quantify impact.",
+    "useWhen": [
+      "Transactions are hanging or timing out.",
+      "You need to know which blocker is affecting the most victims.",
+      "Slow query findings suggest waits or lock contention."
+    ],
+    "readingSteps": [
+      {
+        "label": "Filter to real blockers",
+        "explanation": "BlockingSession is not null keeps the result focused on contention events."
+      },
+      {
+        "label": "Count victims",
+        "explanation": "The blocked session count tells you which blocker is causing the widest impact."
+      },
+      {
+        "label": "Keep victim IDs",
+        "explanation": "values(SessionId) preserves the affected sessions so you can drill down next."
+      }
+    ],
+    "signals": [
+      "One blocker with many victims is usually the fastest place to intervene.",
+      "Different wait events across blockers often indicate separate root causes.",
+      "If blockers rotate rapidly, look for application retry behavior or hot rows."
+    ],
+    "followUps": [
+      "Cross-check the blocker with slow SQL and user/module fields.",
+      "Trend blockers over time to see whether lock contention is periodic.",
+      "Use DatabaseId filters if multiple databases share the log set."
+    ]
+  },
+  {
+    "id": "database-id-lookup",
+    "analystGoal": "Pull all relevant events for one database or system identifier.",
+    "useWhen": [
+      "You have a known database ID and need a focused slice of events.",
+      "You want to validate which pod or host a database is associated with.",
+      "You are narrowing a broad investigation to one backend asset."
+    ],
+    "readingSteps": [
+      {
+        "label": "Use an exact identifier filter",
+        "explanation": "The query applies one field equals one value so you can isolate a specific database entity."
+      },
+      {
+        "label": "Return context fields",
+        "explanation": "Time, DBName, Host, and Message are kept so the events remain interpretable."
+      }
+    ],
+    "signals": [
+      "Multiple hosts for the same ID may indicate failover, clustering, or inconsistent tagging.",
+      "Sparse results can mean you chose the wrong ID field for this source mapping.",
+      "If the host looks right but the event type does not, broaden the log source filter."
+    ],
+    "followUps": [
+      "Try DBSystemId instead of DatabaseId if the source mapping differs.",
+      "Add severity or event filters to focus on failures.",
+      "Save the query so the ID lookup can be reused during future incidents."
+    ]
+  },
+  {
+    "id": "api-endpoint-correlation",
+    "analystGoal": "Understand who is calling an endpoint, how often, and with what performance profile.",
+    "useWhen": [
+      "An API endpoint is slow, noisy, or returning errors.",
+      "You need to identify the top caller or source IP.",
+      "You want to relate call count to status mix and duration."
+    ],
+    "readingSteps": [
+      {
+        "label": "Match the endpoint",
+        "explanation": "The URI like filter scopes the analysis to one endpoint family."
+      },
+      {
+        "label": "Group by caller dimensions",
+        "explanation": "Source, ClientIP, Method, and Status show which callers are responsible for the most traffic."
+      },
+      {
+        "label": "Combine count and latency",
+        "explanation": "Calls plus Avg Duration helps separate heavy traffic from slow traffic."
+      }
+    ],
+    "signals": [
+      "A single caller dominating traffic can explain endpoint saturation.",
+      "High call count with low correlated request count often means repeated attempts in one business flow.",
+      "Rising 500s from one method or source points to a narrow failure path."
+    ],
+    "followUps": [
+      "Drill into ECID if you need end-to-end flow correlation.",
+      "Save a bar view for top callers and a table view for status details.",
+      "Compare healthy and incident windows to spot unusual callers."
+    ]
+  }
+]

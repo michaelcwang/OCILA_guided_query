@@ -1,0 +1,122 @@
+[
+  {
+    "term": "Log Set",
+    "aliases": ["'log set'", "log set"],
+    "category": "Scope",
+    "description": "Limits the search to one pod or log collection boundary so results stay relevant to the environment you are investigating."
+  },
+  {
+    "term": "Log Source",
+    "aliases": ["'log source'", "log source"],
+    "category": "Scope",
+    "description": "Identifies which parser or source type produced the event, such as access logs, app logs, or async orchestration logs."
+  },
+  {
+    "term": "link span",
+    "aliases": ["link span"],
+    "category": "Time Series",
+    "description": "Buckets events into fixed time windows so you can trend counts or averages over time."
+  },
+  {
+    "term": "addfields",
+    "aliases": ["addfields"],
+    "category": "Derived Metrics",
+    "description": "Builds multiple derived calculations side by side so one query can return several related metrics."
+  },
+  {
+    "term": "stats",
+    "aliases": ["| stats", " stats "],
+    "category": "Aggregation",
+    "description": "Aggregates raw events into summary values such as counts, averages, maximums, or grouped totals."
+  },
+  {
+    "term": "count",
+    "aliases": ["count(", "count as"],
+    "category": "Aggregation",
+    "description": "Counts matching events. It is the first thing to look at when you want throughput or error volume."
+  },
+  {
+    "term": "count_distinct",
+    "aliases": ["count_distinct("],
+    "category": "Aggregation",
+    "description": "Counts unique values, which is useful for sessions, ECIDs, users, or hosts."
+  },
+  {
+    "term": "avg",
+    "aliases": ["avg("],
+    "category": "Aggregation",
+    "description": "Computes the average of a numeric field such as Duration or ProcessingDuration."
+  },
+  {
+    "term": "max",
+    "aliases": ["max("],
+    "category": "Aggregation",
+    "description": "Finds the highest observed value in the result set, useful for spotting spikes."
+  },
+  {
+    "term": "values",
+    "aliases": ["values("],
+    "category": "Aggregation",
+    "description": "Collects matching values into one grouped result row so you can keep important identifiers such as victim session IDs."
+  },
+  {
+    "term": "like",
+    "aliases": [" like "],
+    "category": "Filtering",
+    "description": "Matches a partial string pattern. Use it when the full URI or message varies but still follows a known prefix."
+  },
+  {
+    "term": "fields",
+    "aliases": ["| fields "],
+    "category": "Projection",
+    "description": "Chooses which columns to keep in the output so you can reduce noise and focus on the data that matters."
+  },
+  {
+    "term": "sort by",
+    "aliases": ["sort by"],
+    "category": "Ordering",
+    "description": "Orders the results so the most important rows appear first, such as highest latency or highest volume."
+  },
+  {
+    "term": "head",
+    "aliases": ["head "],
+    "category": "Ordering",
+    "description": "Keeps only the top portion of the sorted output, usually the most important rows to review first."
+  },
+  {
+    "term": "ECID",
+    "aliases": ["ecid"],
+    "category": "Correlation",
+    "description": "Execution context identifier used to tie together multiple log events from the same business flow."
+  },
+  {
+    "term": "Duration",
+    "aliases": ["duration"],
+    "category": "Latency",
+    "description": "A response time style field. High averages indicate broad slowness and high max values indicate spikes."
+  },
+  {
+    "term": "ProcessingDuration",
+    "aliases": ["processingduration"],
+    "category": "Latency",
+    "description": "A processing time field often used for async or orchestration stages."
+  },
+  {
+    "term": "BlockingSession",
+    "aliases": ["blockingsession"],
+    "category": "Database",
+    "description": "The session holding a lock or resource that is preventing other sessions from moving forward."
+  },
+  {
+    "term": "Status",
+    "aliases": ["status"],
+    "category": "HTTP",
+    "description": "The response status code or status indicator. It is often the fastest way to separate successes from failures."
+  },
+  {
+    "term": "URI",
+    "aliases": ["uri"],
+    "category": "HTTP",
+    "description": "The request path. Grouping or filtering by URI helps isolate one API or endpoint family."
+  }
+]

@@ -138,6 +138,13 @@ label {
   font-size: 0.95rem;
 }
 
+.label-row,
+.title-with-help {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 input,
 select,
 textarea {
@@ -171,6 +178,19 @@ button.secondary {
   background: #f5ede2;
   color: var(--ink);
   border: 1px solid var(--line);
+}
+
+.help-button {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  background: #f5ede2;
+  color: var(--accent-2);
+  border: 1px solid var(--line);
+  font-weight: 700;
+  line-height: 1;
 }
 
 button:hover {
@@ -243,6 +263,29 @@ button:disabled {
   overflow: auto;
 }
 
+.help-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 18px;
+  background: #fffdf9;
+  border: 1px solid var(--line);
+}
+
+.sensitive-note {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fffdf9 0%, #f6eee1 100%);
+  border: 1px solid var(--line);
+}
+
+.help-card:empty::before {
+  content: "Loading training help...";
+  color: var(--muted);
+}
+
 .history-list.empty,
 .chart-wrap.empty {
   color: var(--muted);
@@ -287,6 +330,35 @@ button:disabled {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.help-title {
+  font-weight: 600;
+}
+
+.help-section {
+  display: grid;
+  gap: 6px;
+}
+
+.help-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ink);
+}
+
+.help-list li + li {
+  margin-top: 4px;
+}
+
+.glossary-term {
+  padding-top: 10px;
+  border-top: 1px solid rgba(60, 44, 22, 0.08);
+}
+
+.glossary-term:first-child {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .field-catalog {
@@ -413,6 +485,34 @@ button:disabled {
   margin-top: 8px;
   font-size: 2rem;
   line-height: 1;
+}
+
+.help-dialog {
+  width: min(720px, calc(100vw - 32px));
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 0;
+  background: #fffaf1;
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.help-dialog::backdrop {
+  background: rgba(37, 22, 10, 0.32);
+}
+
+.help-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 18px 20px 0;
+}
+
+.help-dialog-body {
+  display: grid;
+  gap: 12px;
+  padding: 0 20px 20px;
 }
 
 .results-table-wrap {

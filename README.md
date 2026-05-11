@@ -19,6 +19,8 @@ Local browser app for guided OCI Log Analytics investigations. The UI starts fro
 - Local visualization directive in the query editor for table, line, bar, or metric views
 - Result visualization area for chart and metric rendering
 - Saved query history in browser local storage
+- In-product training help tied to each investigation template
+- Query glossary help based on operators detected in the current query text
 - Field and value suggestion endpoint
 - Custom field selector backed by Log Analytics field metadata
 - Mock mode for UI development without OCI credentials
@@ -41,9 +43,27 @@ This project is wired to use the Oracle Cloud Infrastructure JavaScript SDK. You
 
 You still need to verify the exact field names used in your tenancy and log sources. The templates intentionally keep the generated queries editable because field availability varies across pods, products, and log source mappings.
 
+## Training content
+
+The user-facing help content lives under `public/help/`:
+
+- `template-guides.json`
+  - Explains what each investigation template is trying to answer, how to read it, what signals matter, and what to do next
+- `query-glossary.json`
+  - Explains common OCILA query concepts such as `link span`, `stats`, `addfields`, `count_distinct`, `ECID`, and `Duration`
+
+## Sensitive data guidance
+
+This app treats sensitive-data handling as an ingestion design topic, not a query-only topic.
+
+- Use Oracle Log Analytics source data filters to mask or hash-mask sensitive values, drop specific values, or hide entire log entries before analysts query them
+- If logs are collected with the Management Agent, masking occurs before content leaves your premises
+- If logs are uploaded on demand or collected from Object Storage, masking occurs on the cloud side before indexing
+- Hash-masked values can still be searched when you know the candidate value and apply a hash function such as `md5()` in the query
+
 ## Next improvements
 
 - Persist investigation presets per pod / use case
-- Add chart visualizations for time-series queries
 - Add domain-specific prompt packs for Fusion, database, and application troubleshooting
-- Add saved query history and export
+- Add saved query export and sharing
+- Add template-specific drill-down actions from result rows
