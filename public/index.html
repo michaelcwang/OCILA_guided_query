@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OCILA Guided Query</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">OCI Log Analytics</p>
+          <h1>Guided query builder for operators, not query-language experts.</h1>
+          <p class="hero-copy">
+            Start with a pod or log set, pick the analysis objective, refine with suggested
+            fields and values, and run the generated query locally.
+          </p>
+        </div>
+        <div class="hero-status">
+          <span id="modeBadge" class="badge">Loading</span>
+          <span class="badge muted" id="healthBadge">Connecting</span>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="panel controls">
+          <div class="panel-title-row">
+            <h2>Investigation Setup</h2>
+            <button id="refreshButton" class="secondary">Refresh Metadata</button>
+          </div>
+
+          <label>
+            Log set / pod
+            <input id="logSetInput" list="logSetOptions" placeholder="Type any pod / log set" />
+            <datalist id="logSetOptions"></datalist>
+          </label>
+
+          <label>
+            Investigation goal
+            <select id="templateSelect"></select>
+          </label>
+
+          <label>
+            Field for focused lookup
+            <select id="fieldSelect"></select>
+          </label>
+
+          <label>
+            Field value / endpoint / database ID
+            <input id="fieldValueInput" placeholder="Example: /fscmRestApi/resources/..." />
+          </label>
+
+          <label>
+            Time bucket
+            <select id="timeSpanSelect">
+              <option value="1minute">1 minute</option>
+              <option value="5minute">5 minutes</option>
+              <option value="15minute">15 minutes</option>
+              <option value="1hour">1 hour</option>
+            </select>
+          </label>
+
+          <label>
+            Extra filter text
+            <input id="filterTextInput" placeholder="Example: 'Log Source' = saas.fa_wls_access" />
+          </label>
+
+          <div class="action-row">
+            <button id="buildButton">Build Query</button>
+            <button id="runButton" class="secondary">Run Query</button>
+          </div>
+
+          <div class="template-hint">
+            <h3>Suggested Fields</h3>
+            <div id="suggestedFields" class="chip-row"></div>
+          </div>
+
+          <div class="template-hint">
+            <div class="panel-title-row">
+              <h3>Custom Field Selection</h3>
+              <button id="applyFieldsButton" class="secondary">Apply Fields</button>
+            </div>
+            <p class="helper-copy" id="fieldSummaryText"></p>
+            <label>
+              Field search
+              <input id="fieldSearchInput" placeholder="Search indexed or custom fields" />
+            </label>
+            <label>
+              Indexed field options
+              <select id="fieldOptionFilter">
+                <option value="all">All fields</option>
+                <option value="facet">Indexed / facet eligible</option>
+                <option value="table">Table eligible</option>
+                <option value="metricKey">Metric key eligible</option>
+                <option value="metricValue">Metric value eligible</option>
+                <option value="summarizable">Summarizable</option>
+                <option value="system">Oracle-defined</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+            <div id="selectedFields" class="chip-row empty-chip-row">No custom fields selected.</div>
+            <div id="fieldCatalog" class="field-catalog"></div>
+          </div>
+        </section>
+
+        <section class="panel workspace">
+          <div class="workspace-grid">
+            <div>
+              <div class="panel-title-row">
+                <h2>Generated Query</h2>
+                <button id="suggestButton" class="secondary">Suggest Fields / Values</button>
+              </div>
+              <textarea id="queryEditor" spellcheck="false"></textarea>
+            </div>
+
+            <div>
+              <h2>Suggestions</h2>
+              <div id="suggestions" class="suggestion-list empty">Suggestions will appear here.</div>
+            </div>
+          </div>
+
+          <div class="result-header">
+            <h2>Results</h2>
+            <div class="time-range">
+              <label>
+                Start
+                <input id="timeStartInput" type="datetime-local" />
+              </label>
+              <label>
+                End
+                <input id="timeEndInput" type="datetime-local" />
+              </label>
+            </div>
+          </div>
+
+          <div id="resultsMeta" class="results-meta"></div>
+          <div id="resultsTableWrap" class="results-table-wrap empty">Run a query to see results.</div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+  </html>
