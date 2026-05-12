@@ -1,5 +1,8 @@
 const QUERY_HISTORY_KEY = "ocila-guided-query-history-v1";
 const HISTORY_LIMIT = 25;
+const FIELD_CATALOG_LIMIT = 200;
+const TRAINING_GUIDE_DEBOUNCE_MS = 180;
+const FIELD_CATALOG_DEBOUNCE_MS = 120;
 const VISUALIZATION_RE = /^\s*--\s*@visualization:\s*(table|line|bar|metric)\s*\r?\n?/i;
 const QUERY_INTENT_HINTS = [
   {
@@ -103,6 +106,7 @@ const INLINE_HELP = {
 const state = {
   logSets: [],
   fields: [],
+  fieldCatalogIndex: [],
   templates: [],
   fieldSummary: null,
   mockMode: true,
@@ -203,6 +207,17 @@ function currentVisualization() {
 
 function unique(items) {
   return [...new Set(items.filter(Boolean))];
+}
+
+function debounce(fn, waitMs) {
+  let timeoutId = null;
+
+  return (...args) => {
+    window.clearTimeout(timeoutId);
+    timeoutId = window.setTimeout(() => {
+      fn(...args);
+    }, waitMs);
+  };
 }
 
 function splitQueryStages(queryText) {
@@ -445,6 +460,29 @@ function fieldMatchesOption(field, option) {
   }
 }
 
+function buildFieldSearchIndex(fields) {
+  return fields.map((field) => {
+    const displayName = displayFieldName(field);
+    const tags = fieldTags(field);
+
+    return {
+      field,
+      displayName,
+      tags,
+      haystack: [
+        displayName,
+        field.name,
+        field.description,
+        field.dataType,
+        ...tags
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+    };
+  });
+}
+
 function renderSuggestedFields(template) {
   els.suggestedFields.innerHTML = "";
   for (const field of template?.suggestedFields || []) {
@@ -535,19 +573,9 @@ function renderFieldSummary() {
 function renderFieldCatalog() {
   const searchTerm = els.fieldSearchInput.value.trim().toLowerCase();
   const option = els.fieldOptionFilter.value;
-  const filtered = state.fields.filter((field) => {
-    const haystack = [
-      field.displayName,
-      field.name,
-      field.description,
-      field.dataType,
-      ...fieldTags(field)
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(searchTerm) && fieldMatchesOption(field, option);
-  });
+  const filtered = state.fieldCatalogIndex.filter(
+    (entry) => entry.haystack.includes(searchTerm) && fieldMatchesOption(entry.field, option)
+  );
 
   if (!filtered.length) {
     els.fieldCatalog.innerHTML = `<div class="helper-copy">No fields match the current filter.</div>`;
@@ -555,22 +583,26 @@ function renderFieldCatalog() {
   }
 
   els.fieldCatalog.innerHTML = "";
+  const fragment = document.createDocumentFragment();
+  const limitedFields = filtered.slice(0, FIELD_CATALOG_LIMIT);
 
-  for (const field of filtered) {
+  for (const entry of limitedFields) {
+    const { field, displayName, tags } = entry;
     const row = document.createElement("label");
     row.className = "field-row";
 
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
-    checkbox.checked = state.selectedFields.includes(displayFieldName(field));
+    checkbox.dataset.fieldName = displayName;
+    checkbox.checked = state.selectedFields.includes(displayName);
     checkbox.addEventListener("change", () => {
-      toggleSelectedField(displayFieldName(field), checkbox.checked);
+      toggleSelectedField(displayName, checkbox.checked);
     });
 
     const content = document.createElement("div");
     const title = document.createElement("div");
     title.className = "field-name";
-    title.textContent = displayFieldName(field);
+    title.textContent = displayName;
 
     const description = document.createElement("div");
     description.className = "helper-copy";
@@ -581,7 +613,7 @@ function renderFieldCatalog() {
     const meta = document.createElement("div");
     meta.className = "field-meta";
 
-    for (const tagText of fieldTags(field)) {
+    for (const tagText of tags) {
       const tag = document.createElement("span");
       tag.className = "field-tag";
       tag.textContent = tagText;
@@ -589,8 +621,23 @@ function renderFieldCatalog() {
     }
 
     row.append(checkbox, content, meta);
-    els.fieldCatalog.append(row);
+    fragment.append(row);
   }
+
+  els.fieldCatalog.append(fragment);
+
+  if (filtered.length > FIELD_CATALOG_LIMIT) {
+    const note = document.createElement("div");
+    note.className = "helper-copy";
+    note.textContent = `Showing first ${FIELD_CATALOG_LIMIT} matching fields. Refine the search to narrow results.`;
+    els.fieldCatalog.append(note);
+  }
+}
+
+function syncFieldCatalogSelections() {
+  els.fieldCatalog.querySelectorAll("input[type='checkbox'][data-field-name]").forEach((checkbox) => {
+    checkbox.checked = state.selectedFields.includes(checkbox.dataset.fieldName);
+  });
 }
 
 function toggleSelectedField(fieldName, shouldSelect) {
@@ -603,7 +650,7 @@ function toggleSelectedField(fieldName, shouldSelect) {
   }
 
   renderSelectedFields();
-  renderFieldCatalog();
+  syncFieldCatalogSelections();
 }
 
 function renderSuggestions(items) {
@@ -1264,12 +1311,26 @@ async function loadHelpContent() {
   renderTrainingGuide();
 }
 
+function scheduleHelpContentLoad() {
+  const callback = () => {
+    loadHelpContent();
+  };
+
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(callback, { timeout: 1500 });
+    return;
+  }
+
+  window.setTimeout(callback, 0);
+}
+
 async function bootstrap() {
   setStatus("Loading metadata", "Connecting to backend");
 
   const data = await fetchJson("/api/bootstrap");
   state.logSets = data.logSets;
   state.fields = data.fields;
+  state.fieldCatalogIndex = buildFieldSearchIndex(state.fields);
   state.fieldSummary = data.fieldSummary;
   state.templates = data.templates;
   state.mockMode = data.mockMode;
@@ -1319,7 +1380,6 @@ async function buildTemplateQuery() {
     els.visualizationSelect.value
   );
   renderTrainingGuide();
-  renderQueryAnalysis();
   els.resultsMeta.textContent = currentTemplate()?.description || "";
 }
 
@@ -1376,7 +1436,6 @@ function applySelectedFields() {
     els.visualizationSelect.value
   );
   renderTrainingGuide();
-  renderQueryAnalysis();
 }
 
 function loadSavedQueries() {
@@ -1395,7 +1454,6 @@ els.refreshButton.addEventListener("click", async () => {
 els.templateSelect.addEventListener("change", () => {
   renderSuggestedFields(currentTemplate());
   renderTrainingGuide();
-  renderQueryAnalysis();
 });
 
 document.querySelectorAll(".help-button").forEach((button) => {
@@ -1411,15 +1469,16 @@ els.closeHelpDialogButton.addEventListener("click", () => {
 els.visualizationSelect.addEventListener("change", () => {
   els.queryEditor.value = applyVisualizationDirective(els.queryEditor.value, els.visualizationSelect.value);
   renderTrainingGuide();
-  renderQueryAnalysis();
 });
+
+const debouncedRenderTrainingGuide = debounce(renderTrainingGuide, TRAINING_GUIDE_DEBOUNCE_MS);
+const debouncedRenderFieldCatalog = debounce(renderFieldCatalog, FIELD_CATALOG_DEBOUNCE_MS);
 
 els.queryEditor.addEventListener("input", () => {
   syncVisualizationSelectionFromEditor();
-  renderTrainingGuide();
-  renderQueryAnalysis();
+  debouncedRenderTrainingGuide();
 });
-els.fieldSearchInput.addEventListener("input", renderFieldCatalog);
+els.fieldSearchInput.addEventListener("input", debouncedRenderFieldCatalog);
 els.fieldOptionFilter.addEventListener("change", renderFieldCatalog);
 
 els.buildButton.addEventListener("click", async () => {
@@ -1446,7 +1505,7 @@ els.suggestButton.addEventListener("click", async () => {
 
 formatNowRange();
 loadSavedQueries();
-loadHelpContent();
+scheduleHelpContentLoad();
 
 bootstrap()
   .then(buildTemplateQuery)

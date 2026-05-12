@@ -10,6 +10,7 @@
   "dependencies": {
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
-    "oci-sdk": "^2.105.0"
+    "oci-common": "^2.131.1",
+    "oci-loganalytics": "^2.131.1"
   }
 }

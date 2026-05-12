@@ -8,25 +8,35 @@ import {
   buildMockResults
 } from "./mock-data.js";
 
-let ociModulePromise;
+let ociCommonPromise;
+let ociLogAnalyticsPromise;
+let authProviderPromise;
+let clientPromise;
 
-async function loadOciSdk() {
-  if (!ociModulePromise) {
-    ociModulePromise = import("oci-sdk");
+async function loadOciCommon() {
+  if (!ociCommonPromise) {
+    ociCommonPromise = import("oci-common");
   }
 
-  return ociModulePromise;
+  return ociCommonPromise;
+}
+
+async function loadOciLogAnalytics() {
+  if (!ociLogAnalyticsPromise) {
+    ociLogAnalyticsPromise = import("oci-loganalytics");
+  }
+
+  return ociLogAnalyticsPromise;
 }
 
 async function buildAuthProvider() {
-  const oci = await loadOciSdk();
+  const ociCommon = await loadOciCommon();
 
   if (appConfig.authMode === "config") {
-    const provider = new oci.ConfigFileAuthenticationDetailsProvider(
+    return new ociCommon.ConfigFileAuthenticationDetailsProvider(
       appConfig.configFile,
       appConfig.configProfile
     );
-    return provider;
   }
 
   if (!hasDirectAuthConfig()) {
@@ -34,7 +44,7 @@ async function buildAuthProvider() {
   }
 
   const privateKey = await fs.readFile(appConfig.privateKeyPath, "utf8");
-  return new oci.SimpleAuthenticationDetailsProvider(
+  return new ociCommon.SimpleAuthenticationDetailsProvider(
     appConfig.tenancyId,
     appConfig.userId,
     appConfig.fingerprint,
@@ -43,10 +53,21 @@ async function buildAuthProvider() {
   );
 }
 
+async function getAuthProvider() {
+  if (!authProviderPromise) {
+    authProviderPromise = buildAuthProvider().catch((error) => {
+      authProviderPromise = undefined;
+      throw error;
+    });
+  }
+
+  return authProviderPromise;
+}
+
 async function createClient() {
-  const oci = await loadOciSdk();
-  const provider = await buildAuthProvider();
-  const client = new oci.loganalytics.LogAnalyticsClient({
+  const ociLogAnalytics = await loadOciLogAnalytics();
+  const provider = await getAuthProvider();
+  const client = new ociLogAnalytics.LogAnalyticsClient({
     authenticationDetailsProvider: provider
   });
 
@@ -55,6 +76,17 @@ async function createClient() {
   }
 
   return client;
+}
+
+async function getClient() {
+  if (!clientPromise) {
+    clientPromise = createClient().catch((error) => {
+      clientPromise = undefined;
+      throw error;
+    });
+  }
+
+  return clientPromise;
 }
 
 function buildNamespaceGuard() {
@@ -75,7 +107,7 @@ export async function listLogSets() {
   }
 
   buildNamespaceGuard();
-  const client = await createClient();
+  const client = await getClient();
   const response = await client.listLogSets({
     namespaceName: appConfig.namespace,
     limit: 1000
@@ -94,7 +126,7 @@ export async function listFields() {
   }
 
   buildNamespaceGuard();
-  const client = await createClient();
+  const client = await getClient();
   const response = await client.listFields({
     namespaceName: appConfig.namespace,
     limit: 1000,
@@ -129,7 +161,7 @@ export async function getFieldSummary() {
   }
 
   buildNamespaceGuard();
-  const client = await createClient();
+  const client = await getClient();
   const response = await client.getFieldsSummary({
     namespaceName: appConfig.namespace
   });
@@ -163,7 +195,7 @@ export async function suggest({ input, caretPosition = 0 }) {
 
   buildNamespaceGuard();
   buildCompartmentGuard();
-  const client = await createClient();
+  const client = await getClient();
   const response = await client.suggest({
     namespaceName: appConfig.namespace,
     suggestDetails: {
@@ -195,7 +227,7 @@ export async function runQuery({ queryText, timeStart, timeEnd }) {
 
   buildNamespaceGuard();
   buildCompartmentGuard();
-  const client = await createClient();
+  const client = await getClient();
   const response = await client.query({
     namespaceName: appConfig.namespace,
     queryDetails: {
