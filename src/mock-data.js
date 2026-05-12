@@ -1,9 +1,9 @@
 import { queryTemplates } from "./query-templates.js";
 
 export const mockLogSets = [
-  { name: "iawmqy-test", displayName: "iawmqy-test" },
-  { name: "fusion-pod-prod", displayName: "fusion-pod-prod" },
-  { name: "db-observability-east", displayName: "db-observability-east" }
+  { name: "sample-pod-dev", displayName: "sample-pod-dev" },
+  { name: "sample-pod-prod", displayName: "sample-pod-prod" },
+  { name: "sample-db-observability", displayName: "sample-db-observability" }
 ];
 
 export const mockFields = [
