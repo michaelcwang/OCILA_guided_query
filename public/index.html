@@ -224,9 +224,13 @@
             <div>
               <div class="panel-title-row">
                 <h2>Generated Query</h2>
-                <button id="suggestButton" class="secondary">Suggest Fields / Values</button>
+                <div class="action-row">
+                  <button id="analyzeQueryButton" class="secondary">Explain Query</button>
+                  <button id="suggestButton" class="secondary">Suggest Fields / Values</button>
+                </div>
               </div>
               <textarea id="queryEditor" spellcheck="false"></textarea>
+              <div id="queryAnalysis" class="help-card"></div>
             </div>
 
             <div>

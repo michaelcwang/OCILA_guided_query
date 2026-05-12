@@ -286,6 +286,15 @@ button:disabled {
   color: var(--muted);
 }
 
+.help-inline-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.help-inline-list li + li {
+  margin-top: 4px;
+}
+
 .history-list.empty,
 .chart-wrap.empty {
   color: var(--muted);

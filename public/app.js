@@ -1,6 +1,36 @@
 const QUERY_HISTORY_KEY = "ocila-guided-query-history-v1";
 const HISTORY_LIMIT = 25;
 const VISUALIZATION_RE = /^\s*--\s*@visualization:\s*(table|line|bar|metric)\s*\r?\n?/i;
+const QUERY_INTENT_HINTS = [
+  {
+    label: "Fusion order validation",
+    patterns: ["orders submitted", "orchestration steps processed", "salesordersfororderhub"]
+  },
+  {
+    label: "Fusion order throughput",
+    patterns: ["status = '201'", "method = post", "dsp operations on orders"]
+  },
+  {
+    label: "Slow database queries",
+    patterns: ["elapsed time", "sql_id", "avg elapsed"]
+  },
+  {
+    label: "Database connection trend",
+    patterns: ["count_distinct(sessionid)", "active sessions"]
+  },
+  {
+    label: "Blocking session analysis",
+    patterns: ["blockingsession", "blocked sessions", "victims"]
+  },
+  {
+    label: "Database ID lookup",
+    patterns: ["databaseid", "dbsystemid", "| fields time"]
+  },
+  {
+    label: "API endpoint correlation",
+    patterns: ["uri like", "correlated requests", "avg(duration)"]
+  }
+];
 const INLINE_HELP = {
   logSet: {
     title: "Log Set / Pod",
@@ -98,6 +128,7 @@ const els = {
   runButton: document.querySelector("#runButton"),
   saveQueryButton: document.querySelector("#saveQueryButton"),
   clearHistoryButton: document.querySelector("#clearHistoryButton"),
+  analyzeQueryButton: document.querySelector("#analyzeQueryButton"),
   queryEditor: document.querySelector("#queryEditor"),
   suggestButton: document.querySelector("#suggestButton"),
   suggestedFields: document.querySelector("#suggestedFields"),
@@ -116,6 +147,7 @@ const els = {
   helpDialogTitle: document.querySelector("#helpDialogTitle"),
   helpDialogBody: document.querySelector("#helpDialogBody"),
   closeHelpDialogButton: document.querySelector("#closeHelpDialogButton"),
+  queryAnalysis: document.querySelector("#queryAnalysis"),
   chartWrap: document.querySelector("#chartWrap"),
   resultsMeta: document.querySelector("#resultsMeta"),
   resultsTableWrap: document.querySelector("#resultsTableWrap"),
@@ -167,6 +199,196 @@ function syncVisualizationSelectionFromEditor() {
 
 function currentVisualization() {
   return parseVisualizationDirective(els.queryEditor.value) || els.visualizationSelect.value;
+}
+
+function unique(items) {
+  return [...new Set(items.filter(Boolean))];
+}
+
+function splitQueryStages(queryText) {
+  const stages = [];
+  let current = "";
+  let bracketDepth = 0;
+  let inQuote = false;
+
+  for (let index = 0; index < queryText.length; index += 1) {
+    const char = queryText[index];
+    const next = queryText[index + 1];
+
+    if (char === "'" && queryText[index - 1] !== "\\") {
+      inQuote = !inQuote;
+      current += char;
+      continue;
+    }
+
+    if (!inQuote) {
+      if (char === "[") {
+        bracketDepth += 1;
+      } else if (char === "]") {
+        bracketDepth = Math.max(bracketDepth - 1, 0);
+      }
+
+      if (char === "|" && bracketDepth === 0) {
+        stages.push(current.trim());
+        current = "";
+        continue;
+      }
+    }
+
+    current += char;
+
+    if (char === "\n" && next === "|") {
+      continue;
+    }
+  }
+
+  if (current.trim()) {
+    stages.push(current.trim());
+  }
+
+  return stages.filter(Boolean);
+}
+
+function inferQueryIntent(queryText) {
+  const normalized = queryText.toLowerCase();
+  const match = QUERY_INTENT_HINTS.find((item) =>
+    item.patterns.every((pattern) => normalized.includes(pattern))
+  );
+  return match?.label || "General scoped aggregation and correlation query";
+}
+
+function analyzeQueryText(queryText) {
+  const cleanQuery = stripVisualizationDirective(queryText).trim();
+  if (!cleanQuery) {
+    return null;
+  }
+
+  const stages = splitQueryStages(cleanQuery);
+  const scopeStage = stages[0] || "";
+  const logSets = unique([...scopeStage.matchAll(/'Log Set'\s*=\s*'([^']+)'/gi)].map((match) => match[1]));
+  const logSources = unique(
+    [...cleanQuery.matchAll(/'Log Source'\s*=\s*([^\s,\]\)]+)/gi)].map((match) =>
+      match[1].replace(/^'|'$/g, "")
+    )
+  );
+  const uriPatterns = unique(
+    [...cleanQuery.matchAll(/\bURI\s+(?:like|=)\s+'([^']+)'/gi)].map((match) => match[1])
+  );
+  const timeBucket = cleanQuery.match(/link\s+span\s*=\s*([^\s]+)\s+Time/i)?.[1] || null;
+  const addfieldsCount = [...cleanQuery.matchAll(/\baddfields\b/gi)].length;
+  const addfieldBlocks = [...cleanQuery.matchAll(/\[[^\]]+\]/g)].length;
+  const aggregations = unique(
+    [...cleanQuery.matchAll(/\b(count_distinct|count|avg|max|min|sum|values)\s*\(/gi)].map(
+      (match) => match[1]
+    )
+  );
+  const groupByFields = unique(
+    [...cleanQuery.matchAll(/\bby\s+([^|\]]+)/gi)]
+      .flatMap((match) => match[1].split(","))
+      .map((item) => item.trim().replace(/^'|'$/g, ""))
+  );
+  const projectionFields = unique(
+    [...cleanQuery.matchAll(/\|\s*fields\s+([^|]+)/gi)]
+      .flatMap((match) => match[1].split(","))
+      .map((item) => item.trim().replace(/^'|'$/g, ""))
+  );
+  const sortField = cleanQuery.match(/\bsort\s+by\s+([^|]+?)(?:\s+(asc|desc))?(?:\s*\||$)/i);
+  const headLimit = cleanQuery.match(/\bhead\s+(\d+)/i)?.[1] || null;
+  const thresholdFilters = unique(
+    [...cleanQuery.matchAll(/\b([A-Za-z_][A-Za-z0-9_ ]*)\s*(>=|<=|>|<)\s*([0-9.]+)/g)].map(
+      (match) => `${match[1].trim()} ${match[2]} ${match[3]}`
+    )
+  );
+  const detectedConcepts = detectGlossaryEntries(cleanQuery).map((entry) => entry.term);
+
+  const summaryParts = [];
+  if (logSets.length) {
+    summaryParts.push(
+      logSets.length === 1
+        ? `scopes to log set ${logSets[0]}`
+        : `scopes to ${logSets.length} log sets`
+    );
+  }
+  if (logSources.length) {
+    summaryParts.push(
+      logSources.length === 1
+        ? `filters one log source`
+        : `pulls ${logSources.length} log sources together`
+    );
+  }
+  if (timeBucket) {
+    summaryParts.push(`buckets results into ${timeBucket} intervals`);
+  }
+  if (aggregations.length) {
+    summaryParts.push(`aggregates with ${aggregations.join(", ")}`);
+  }
+
+  const walkthrough = [];
+  walkthrough.push(`Stage count: ${stages.length}. The query is processed in ${stages.length} pipeline stage(s).`);
+  if (logSets.length) {
+    walkthrough.push(
+      `Scope filter: ${logSets.length === 1 ? logSets[0] : logSets.join(", ")}.`
+    );
+  }
+  if (logSources.length) {
+    walkthrough.push(`Log source filter: ${logSources.join(", ")}.`);
+  }
+  if (uriPatterns.length) {
+    walkthrough.push(`URI filter: ${uriPatterns.join(", ")}.`);
+  }
+  if (timeBucket) {
+    walkthrough.push(`Time bucketing: link span groups events by ${timeBucket}.`);
+  }
+  if (addfieldsCount || addfieldBlocks) {
+    walkthrough.push(
+      `Derived metrics: addfields is used${addfieldBlocks ? ` with ${addfieldBlocks} metric block(s)` : ""}.`
+    );
+  }
+  if (aggregations.length) {
+    walkthrough.push(`Aggregations detected: ${aggregations.join(", ")}.`);
+  }
+  if (groupByFields.length) {
+    walkthrough.push(`Grouping fields: ${groupByFields.join(", ")}.`);
+  }
+  if (projectionFields.length) {
+    walkthrough.push(`Projected output fields: ${projectionFields.join(", ")}.`);
+  }
+  if (sortField) {
+    walkthrough.push(
+      `Ordering: sorted by ${sortField[1].trim()}${sortField[2] ? ` ${sortField[2].toUpperCase()}` : ""}.`
+    );
+  }
+  if (headLimit) {
+    walkthrough.push(`Top-N filter: head ${headLimit} keeps only the leading rows.`);
+  }
+
+  const watchouts = [];
+  if (logSets.length > 1) {
+    watchouts.push("Multiple pods are combined, so differences between pods may be hidden in the aggregate result.");
+  }
+  if (addfieldBlocks > 3) {
+    watchouts.push("This query computes many derived metrics at once, so validate that each metric is comparable at the same time granularity.");
+  }
+  if (!timeBucket && cleanQuery.includes("stats")) {
+    watchouts.push("The query aggregates results but does not bucket by time, so you will get rollups rather than a time trend.");
+  }
+  if (thresholdFilters.length) {
+    watchouts.push(`Threshold filters detected: ${thresholdFilters.join(", ")}.`);
+  }
+  if (!watchouts.length) {
+    watchouts.push("No obvious structural risk was detected. Validate the field names against the actual log source mapping in your tenancy.");
+  }
+
+  return {
+    intent: inferQueryIntent(cleanQuery),
+    summary:
+      summaryParts.length > 0
+        ? `This query ${summaryParts.join(", ")}.`
+        : "This query applies filters and pipeline stages, but the scope is not obvious from the text alone.",
+    walkthrough,
+    detectedConcepts,
+    watchouts
+  };
 }
 
 function escapeHtml(value) {
@@ -794,6 +1016,51 @@ function renderTrainingGuide() {
   renderGlossaryHelp();
 }
 
+function renderQueryAnalysis() {
+  const analysis = analyzeQueryText(els.queryEditor.value);
+
+  if (!analysis) {
+    els.queryAnalysis.innerHTML = `
+      <div class="help-title">Query Analysis</div>
+      <div class="helper-copy">
+        Paste an OCILA query into the editor and click Explain Query to get a plain-English breakdown.
+      </div>
+    `;
+    return;
+  }
+
+  els.queryAnalysis.innerHTML = `
+    <div class="help-section">
+      <div class="help-title">Likely Purpose</div>
+      <div class="helper-copy">${escapeHtml(analysis.intent)}</div>
+    </div>
+    <div class="help-section">
+      <div class="help-title">Plain-English Summary</div>
+      <div class="helper-copy">${escapeHtml(analysis.summary)}</div>
+    </div>
+    <div class="help-section">
+      <div class="help-title">What The Query Is Doing</div>
+      <ul class="help-inline-list">
+        ${analysis.walkthrough.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+      </ul>
+    </div>
+    <div class="help-section">
+      <div class="help-title">Detected Concepts</div>
+      ${
+        analysis.detectedConcepts.length
+          ? `<div class="helper-copy">${escapeHtml(analysis.detectedConcepts.join(", "))}</div>`
+          : `<div class="helper-copy">No glossary concepts were detected yet.</div>`
+      }
+    </div>
+    <div class="help-section">
+      <div class="help-title">Watch-Outs</div>
+      <ul class="help-inline-list">
+        ${analysis.watchouts.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+      </ul>
+    </div>
+  `;
+}
+
 function renderSensitiveDataNote() {
   els.sensitiveDataNote.innerHTML = `
     <div class="help-title">Mask before analysts query it</div>
@@ -923,6 +1190,7 @@ function loadSavedQuery(id) {
   renderFieldCatalog();
   syncVisualizationSelectionFromEditor();
   renderTrainingGuide();
+  renderQueryAnalysis();
   els.resultsMeta.textContent = `Loaded saved query from ${formatSavedAt(item.savedAt)}.`;
 }
 
@@ -1025,6 +1293,7 @@ async function bootstrap() {
   renderFieldCatalog();
   renderHistory();
   renderTrainingGuide();
+  renderQueryAnalysis();
   renderSensitiveDataNote();
   setStatus(state.mockMode ? "Mock Mode" : "OCI Mode", "Metadata ready");
 }
@@ -1050,6 +1319,7 @@ async function buildTemplateQuery() {
     els.visualizationSelect.value
   );
   renderTrainingGuide();
+  renderQueryAnalysis();
   els.resultsMeta.textContent = currentTemplate()?.description || "";
 }
 
@@ -1106,6 +1376,7 @@ function applySelectedFields() {
     els.visualizationSelect.value
   );
   renderTrainingGuide();
+  renderQueryAnalysis();
 }
 
 function loadSavedQueries() {
@@ -1124,6 +1395,7 @@ els.refreshButton.addEventListener("click", async () => {
 els.templateSelect.addEventListener("change", () => {
   renderSuggestedFields(currentTemplate());
   renderTrainingGuide();
+  renderQueryAnalysis();
 });
 
 document.querySelectorAll(".help-button").forEach((button) => {
@@ -1139,11 +1411,13 @@ els.closeHelpDialogButton.addEventListener("click", () => {
 els.visualizationSelect.addEventListener("change", () => {
   els.queryEditor.value = applyVisualizationDirective(els.queryEditor.value, els.visualizationSelect.value);
   renderTrainingGuide();
+  renderQueryAnalysis();
 });
 
 els.queryEditor.addEventListener("input", () => {
   syncVisualizationSelectionFromEditor();
   renderTrainingGuide();
+  renderQueryAnalysis();
 });
 els.fieldSearchInput.addEventListener("input", renderFieldCatalog);
 els.fieldOptionFilter.addEventListener("change", renderFieldCatalog);
@@ -1160,6 +1434,7 @@ els.runButton.addEventListener("click", runCurrentQuery);
 els.saveQueryButton.addEventListener("click", saveCurrentQuery);
 els.clearHistoryButton.addEventListener("click", clearSavedQueries);
 els.applyFieldsButton.addEventListener("click", applySelectedFields);
+els.analyzeQueryButton.addEventListener("click", renderQueryAnalysis);
 els.suggestButton.addEventListener("click", async () => {
   try {
     await suggestForEditor();
