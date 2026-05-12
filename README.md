@@ -22,6 +22,7 @@ Local browser app for guided OCI Log Analytics investigations. The UI starts fro
 - In-product training help tied to each investigation template
 - Query glossary help based on operators detected in the current query text
 - Field and value suggestion endpoint
+- API endpoint that returns generated query text plus an OCI CLI payload/command
 - Custom field selector backed by Log Analytics field metadata
 - Mock mode for UI development without OCI credentials
 
@@ -42,6 +43,78 @@ This project is wired to use the Oracle Cloud Infrastructure JavaScript SDK. You
   - Reads tenancy, user, fingerprint, region, and private key path from environment variables
 
 You still need to verify the exact field names used in your tenancy and log sources. The templates intentionally keep the generated queries editable because field availability varies across pods, products, and log source mappings.
+
+## Query generation API
+
+The server now exposes `POST /api/cli-query` for automation use cases. You can pass either:
+
+- `queryText` for a manually authored query
+- or the same template inputs the UI uses: `templateId`, `logSet`, `field`, `value`, `timeSpan`, `filterText`, and `selectedFields`
+
+Optional execution fields are also accepted and folded into the OCI CLI payload:
+
+- `timeStart`
+- `timeEnd`
+- `namespaceName`
+- `compartmentId`
+- `subSystem`
+- `timezone`
+- `shouldRunAsync`
+- `asyncMode`
+- `shouldIncludeColumns`
+- `shouldIncludeFields`
+- `shouldIncludeTotalCount`
+- `shouldUseAcceleration`
+- `compartmentIdInSubtree`
+- `limit`
+- `maxTotalCount`
+- `queryTimeoutInSeconds`
+
+Example request:
+
+```json
+{
+  "templateId": "slow-db-queries",
+  "logSet": "sample-pod-prod,sample-db-observability",
+  "timeSpan": "5minute",
+  "filterText": "DBName = 'FINDB'",
+  "selectedFields": ["SQL_ID", "DBName", "Elapsed Time"],
+  "timeStart": "2026-05-12T00:00:00Z",
+  "timeEnd": "2026-05-12T01:00:00Z",
+  "shouldIncludeColumns": true,
+  "shouldIncludeFields": true,
+  "limit": 200
+}
+```
+
+Example response shape:
+
+```json
+{
+  "query": "(...) | fields SQL_ID, DBName, Elapsed Time",
+  "querySource": "template",
+  "templateId": "slow-db-queries",
+  "visualization": null,
+  "selectedFields": ["SQL_ID", "DBName", "Elapsed Time"],
+  "cli": {
+    "cliRequest": {
+      "compartmentId": "<OCI_LOG_ANALYTICS_COMPARTMENT_OCID>",
+      "namespaceName": "<OCI_LOG_ANALYTICS_NAMESPACE>",
+      "queryString": "(...) | fields SQL_ID, DBName, Elapsed Time",
+      "subSystem": "LOG",
+      "timeStart": "2026-05-12T00:00:00.000Z",
+      "timeEnd": "2026-05-12T01:00:00.000Z",
+      "shouldIncludeColumns": true,
+      "shouldIncludeFields": true,
+      "limit": 200
+    },
+    "inlineCommand": "oci log-analytics query search ...",
+    "fromJsonCommand": "oci log-analytics query search --from-json file://ocila-query-request.json"
+  }
+}
+```
+
+The `cliRequest` object is intended to be saved directly as `ocila-query-request.json` and then executed with the returned `fromJsonCommand`.
 
 ## Training content
 

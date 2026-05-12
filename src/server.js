@@ -2,7 +2,8 @@ import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { appConfig } from "./config.js";
-import { queryTemplates, getTemplateById } from "./query-templates.js";
+import { queryTemplates } from "./query-templates.js";
+import { buildCliRequest, buildQueryFromPayload } from "./query-api.js";
 import { getFieldSummary, listFields, listLogSets, runQuery, suggest } from "./oci-log-analytics.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -54,28 +55,38 @@ app.post("/api/suggest", async (req, res) => {
 });
 
 app.post("/api/template-query", (req, res) => {
-  const { templateId, logSet, field, value, timeSpan, filterText } = req.body || {};
-  const template = getTemplateById(templateId);
-
-  if (!template) {
-    return res.status(404).json({ error: "Template not found." });
+  try {
+    const { query, template } = buildQueryFromPayload(req.body || {});
+    return res.json({
+      query,
+      templateId: template?.id || null
+    });
+  } catch (error) {
+    const statusCode = error.message.includes("required") ? 400 : 404;
+    return res.status(statusCode).json({ error: error.message });
   }
+});
 
-  if (!logSet) {
-    return res.status(400).json({ error: "logSet is required." });
+app.post("/api/cli-query", (req, res) => {
+  try {
+    const builtQuery = buildQueryFromPayload(req.body || {});
+    const cli = buildCliRequest({
+      ...req.body,
+      queryText: builtQuery.query
+    });
+
+    return res.json({
+      query: builtQuery.query,
+      querySource: builtQuery.querySource,
+      templateId: builtQuery.template?.id || null,
+      visualization: builtQuery.visualization,
+      selectedFields: builtQuery.selectedFields,
+      cli
+    });
+  } catch (error) {
+    const statusCode = error.message.includes("required") ? 400 : 404;
+    return res.status(statusCode).json({ error: error.message });
   }
-
-  const query = template.queryBuilder({
-    logSet,
-    field,
-    value,
-    timeSpan,
-    filterText
-  });
-
-  return res.json({
-    query
-  });
 });
 
 app.post("/api/query", async (req, res) => {

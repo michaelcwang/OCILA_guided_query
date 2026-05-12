@@ -164,6 +164,11 @@ textarea {
   line-height: 1.45;
 }
 
+.mini-output {
+  min-height: 112px;
+  background: #fcf8f1;
+}
+
 button {
   border: 0;
   border-radius: 999px;
@@ -424,6 +429,10 @@ button:disabled {
 .results-meta {
   color: var(--muted);
   font-size: 0.95rem;
+}
+
+#automationMeta {
+  min-height: 1.4em;
 }
 
 .chart-wrap {

@@ -133,7 +133,13 @@ const els = {
   saveQueryButton: document.querySelector("#saveQueryButton"),
   clearHistoryButton: document.querySelector("#clearHistoryButton"),
   analyzeQueryButton: document.querySelector("#analyzeQueryButton"),
+  refreshAutomationButton: document.querySelector("#refreshAutomationButton"),
+  copyApiPayloadButton: document.querySelector("#copyApiPayloadButton"),
+  copyCliCommandButton: document.querySelector("#copyCliCommandButton"),
   queryEditor: document.querySelector("#queryEditor"),
+  automationMeta: document.querySelector("#automationMeta"),
+  apiPayloadOutput: document.querySelector("#apiPayloadOutput"),
+  cliCommandOutput: document.querySelector("#cliCommandOutput"),
   suggestButton: document.querySelector("#suggestButton"),
   suggestedFields: document.querySelector("#suggestedFields"),
   applyFieldsButton: document.querySelector("#applyFieldsButton"),
@@ -1135,6 +1141,75 @@ function openHelpDialog(helpKey) {
   els.helpDialog.showModal();
 }
 
+function currentUiPayload() {
+  return {
+    templateId: els.templateSelect.value,
+    logSet: els.logSetInput.value.trim(),
+    field: els.fieldSelect.value,
+    value: els.fieldValueInput.value,
+    timeSpan: els.timeSpanSelect.value,
+    filterText: els.filterTextInput.value,
+    queryText: els.queryEditor.value,
+    selectedFields: [...state.selectedFields],
+    timeStart: els.timeStartInput.value ? new Date(els.timeStartInput.value).toISOString() : undefined,
+    timeEnd: els.timeEndInput.value ? new Date(els.timeEndInput.value).toISOString() : undefined,
+    shouldIncludeColumns: true,
+    shouldIncludeFields: true
+  };
+}
+
+function renderAutomationPanel(data = null) {
+  if (!data) {
+    els.automationMeta.textContent = "Build a query, then generate an API payload and OCI CLI command.";
+    els.apiPayloadOutput.value = "";
+    els.cliCommandOutput.value = "";
+    return;
+  }
+
+  els.automationMeta.textContent =
+    `Source: ${data.querySource}. Save cli.cliRequest as ocila-query-request.json, then run the command below.`;
+  els.apiPayloadOutput.value = JSON.stringify(data.cli.cliRequest, null, 2);
+  els.cliCommandOutput.value =
+    `${data.cli.fromJsonCommand}\n\nInline alternative:\n${data.cli.inlineCommand}`;
+}
+
+async function refreshAutomationPanel(options = {}) {
+  const { silent = false } = options;
+
+  try {
+    const data = await fetchJson("/api/cli-query", {
+      method: "POST",
+      body: JSON.stringify(currentUiPayload())
+    });
+    renderAutomationPanel(data);
+  } catch (error) {
+    if (!silent) {
+      els.automationMeta.textContent = error.message;
+    }
+    els.apiPayloadOutput.value = "";
+    els.cliCommandOutput.value = "";
+  }
+}
+
+async function copyOutputValue(textarea, label) {
+  const value = textarea.value.trim();
+  if (!value) {
+    els.automationMeta.textContent = `Nothing to copy for ${label.toLowerCase()}.`;
+    return;
+  }
+
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+  } else {
+    textarea.removeAttribute("readonly");
+    textarea.select();
+    document.execCommand("copy");
+    textarea.setAttribute("readonly", "readonly");
+  }
+
+  els.automationMeta.textContent = `${label} copied to clipboard.`;
+}
+
 function fetchSavedQueries() {
   try {
     return JSON.parse(localStorage.getItem(QUERY_HISTORY_KEY) || "[]");
@@ -1238,6 +1313,7 @@ function loadSavedQuery(id) {
   syncVisualizationSelectionFromEditor();
   renderTrainingGuide();
   renderQueryAnalysis();
+  refreshAutomationPanel({ silent: true });
   els.resultsMeta.textContent = `Loaded saved query from ${formatSavedAt(item.savedAt)}.`;
 }
 
@@ -1356,6 +1432,7 @@ async function bootstrap() {
   renderTrainingGuide();
   renderQueryAnalysis();
   renderSensitiveDataNote();
+  renderAutomationPanel();
   setStatus(state.mockMode ? "Mock Mode" : "OCI Mode", "Metadata ready");
 }
 
@@ -1380,6 +1457,7 @@ async function buildTemplateQuery() {
     els.visualizationSelect.value
   );
   renderTrainingGuide();
+  refreshAutomationPanel({ silent: true });
   els.resultsMeta.textContent = currentTemplate()?.description || "";
 }
 
@@ -1436,6 +1514,7 @@ function applySelectedFields() {
     els.visualizationSelect.value
   );
   renderTrainingGuide();
+  refreshAutomationPanel({ silent: true });
 }
 
 function loadSavedQueries() {
@@ -1469,6 +1548,7 @@ els.closeHelpDialogButton.addEventListener("click", () => {
 els.visualizationSelect.addEventListener("change", () => {
   els.queryEditor.value = applyVisualizationDirective(els.queryEditor.value, els.visualizationSelect.value);
   renderTrainingGuide();
+  refreshAutomationPanel({ silent: true });
 });
 
 const debouncedRenderTrainingGuide = debounce(renderTrainingGuide, TRAINING_GUIDE_DEBOUNCE_MS);
@@ -1494,6 +1574,15 @@ els.saveQueryButton.addEventListener("click", saveCurrentQuery);
 els.clearHistoryButton.addEventListener("click", clearSavedQueries);
 els.applyFieldsButton.addEventListener("click", applySelectedFields);
 els.analyzeQueryButton.addEventListener("click", renderQueryAnalysis);
+els.refreshAutomationButton.addEventListener("click", async () => {
+  await refreshAutomationPanel();
+});
+els.copyApiPayloadButton.addEventListener("click", async () => {
+  await copyOutputValue(els.apiPayloadOutput, "API payload");
+});
+els.copyCliCommandButton.addEventListener("click", async () => {
+  await copyOutputValue(els.cliCommandOutput, "OCI CLI command");
+});
 els.suggestButton.addEventListener("click", async () => {
   try {
     await suggestForEditor();
@@ -1509,6 +1598,7 @@ scheduleHelpContentLoad();
 
 bootstrap()
   .then(buildTemplateQuery)
+  .then(() => refreshAutomationPanel({ silent: true }))
   .catch((error) => {
     setStatus("Error", error.message);
   });

@@ -225,12 +225,33 @@
               <div class="panel-title-row">
                 <h2>Generated Query</h2>
                 <div class="action-row">
+                  <button id="refreshAutomationButton" class="secondary">Build API / CLI</button>
                   <button id="analyzeQueryButton" class="secondary">Explain Query</button>
                   <button id="suggestButton" class="secondary">Suggest Fields / Values</button>
                 </div>
               </div>
               <textarea id="queryEditor" spellcheck="false"></textarea>
               <div id="queryAnalysis" class="help-card"></div>
+              <div class="panel-subsection">
+                <div class="panel-title-row">
+                  <h2>Automation</h2>
+                  <div class="action-row">
+                    <button id="copyApiPayloadButton" class="secondary">Copy Payload</button>
+                    <button id="copyCliCommandButton" class="secondary">Copy CLI</button>
+                  </div>
+                </div>
+                <div id="automationMeta" class="helper-copy">
+                  Build a query, then generate an API payload and OCI CLI command.
+                </div>
+                <label>
+                  API payload
+                  <textarea id="apiPayloadOutput" class="mini-output" spellcheck="false" readonly></textarea>
+                </label>
+                <label>
+                  OCI CLI command
+                  <textarea id="cliCommandOutput" class="mini-output" spellcheck="false" readonly></textarea>
+                </label>
+              </div>
             </div>
 
             <div>
