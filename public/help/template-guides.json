@@ -113,7 +113,7 @@
     "readingSteps": [
       {
         "label": "Count distinct sessions",
-        "explanation": "count_distinct(SessionId) avoids inflating the metric when one session emits multiple events."
+        "explanation": "distinctcount('Session ID') avoids inflating the metric when one session emits multiple events."
       },
       {
         "label": "Trend by time",
@@ -178,8 +178,8 @@
         "explanation": "The blocked session count tells you which blocker is causing the widest impact."
       },
       {
-        "label": "Keep victim IDs",
-        "explanation": "values(SessionId) preserves the affected sessions so you can drill down next."
+        "label": "Rank blockers first",
+        "explanation": "The query counts blocked sessions by blocker and event so you can identify the highest-impact contention first."
       }
     ],
     "signals": [

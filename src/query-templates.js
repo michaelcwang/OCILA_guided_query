@@ -2,6 +2,72 @@ function escapeQueryValue(value) {
   return value.replaceAll("'", "\\'");
 }
 
+function normalizeFieldToken(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replaceAll(/['"`]/g, "")
+    .replaceAll(/[^a-z0-9]/g, "");
+}
+
+function formatFieldReference(fieldName) {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(fieldName)
+    ? fieldName
+    : `'${escapeQueryValue(fieldName)}'`;
+}
+
+function resolveFieldName(availableFields, candidates, options = {}) {
+  const { required = false, label = "field" } = options;
+  const fields = Array.isArray(availableFields) ? availableFields : [];
+
+  if (!fields.length) {
+    if (required) {
+      throw new Error(`Unable to resolve ${label} because no field metadata is available.`);
+    }
+    return null;
+  }
+
+  const lookup = new Map();
+  for (const field of fields) {
+    if (typeof options.filter === "function" && !options.filter(field)) {
+      continue;
+    }
+    const names = [field?.displayName, field?.name].filter(Boolean);
+    for (const name of names) {
+      lookup.set(normalizeFieldToken(name), name);
+    }
+  }
+
+  for (const candidate of candidates) {
+    const match = lookup.get(normalizeFieldToken(candidate));
+    if (match) {
+      return match;
+    }
+  }
+
+  if (required) {
+    throw new Error(`Unable to resolve ${label} from the available OCILA fields.`);
+  }
+
+  return null;
+}
+
+function isStatsByCandidate(field) {
+  return Boolean(field?.isFacetEligible || field?.isSummarizable || field?.isTableEligible);
+}
+
+function buildStatsClause(statExpressions, groupFields = []) {
+  const statsBody = statExpressions.filter(Boolean).join(", ");
+  const byClause = groupFields.length ? ` by ${groupFields.join(", ")}` : "";
+  return `stats ${statsBody}${byClause}`;
+}
+
+function buildFieldsClause(fieldNames) {
+  return fieldNames
+    .filter(Boolean)
+    .map((fieldName) => formatFieldReference(fieldName))
+    .join(", ");
+}
+
 function buildLogSetClause(logSetInput) {
   const logSets = String(logSetInput || "")
     .split(",")
@@ -27,10 +93,40 @@ export const queryTemplates = [
     description: "Validate order count and end-to-end timing across appslogger, wsasync, and access logs.",
     requiredFields: ["Log Set"],
     suggestedFields: ["Log Source", "URI", "ECID", "Duration", "ProcessingDuration"],
-    queryBuilder: ({ logSet, filterText = "" }) => {
+    queryBuilder: ({ logSet, filterText = "", availableFields = [] }) => {
       const logSetClause = buildLogSetClause(logSet);
       const suffix = filterText ? ` and ${filterText}` : "";
-      return `${logSetClause} and ('Log Source' = saas.fa_appslogger or 'Log Source' = saas.fa_wls_wsasync or 'Log Source' = saas.fa_wls_access)${suffix} | link span = 1minute Time | addfields [ 'Log Source' = saas.fa_appslogger and 'processing order' | stats count(ECID) as 'Orders Submitted' ], [ 'Log Source' = saas.fa_wls_access and URI like '/fscmRestApi/resources/11.13.18.05/salesOrdersForOrderHub/DSP:%' | stats count as 'DSP operations on orders' ], [ 'Log Source' = saas.fa_wls_access and URI like '/fscmrestapi/applcoreapi/search/v1/fa-fscm-item-version/_search%' | stats count as 'Search API calls' ], [ 'Log Source' = saas.fa_wls_wsasync and '/fscmService/OrchInfraUtilService?wslazyloading][OperationName:' and 'processed' | stats count as 'Orchestration steps processed' ], [ 'Log Source' = saas.fa_wls_wsasync and '/fscmService/OrchInfraUtilService?wslazyloading][OperationName:' | stats avg(ProcessingDuration) as 'Orchestration processing time (ms)' ], [ 'Log Source' = saas.fa_wls_access and URI like '/fscmRestApi/resources/11.13.18.05/salesOrdersForOrderHub%' | stats avg(Duration) as 'Orders API response time (seconds)' ], [ 'Log Source' = saas.fa_wls_access and URI like '/fscmRestApi/resources/11.13.18.05/salesOrdersForOrderHub%' and Duration > 300 | stats count as 'Orders API timeouts' ], [ 'Log Source' = saas.fa_wls_access and URI like '/fscmrestapi/applcoreapi/search/v1/fa-fscm-item-version/_search%' | stats avg(Duration) as 'Search API performance' ]`;
+      const logSourceField = resolveFieldName(availableFields, ["Log Source"], {
+        required: true,
+        label: "log source field"
+      });
+      const uriField = resolveFieldName(availableFields, ["URI", "Url", "Request URI"], {
+        required: true,
+        label: "URI field"
+      });
+      const ecidField = resolveFieldName(availableFields, ["ECID"], {
+        required: true,
+        label: "ECID field"
+      });
+      const processingDurationField = resolveFieldName(
+        availableFields,
+        ["ProcessingDuration", "Processing Duration"],
+        {
+          required: true,
+          label: "processing duration field"
+        }
+      );
+      const durationField = resolveFieldName(availableFields, ["Duration"], {
+        required: true,
+        label: "duration field"
+      });
+      const logSourceRef = formatFieldReference(logSourceField);
+      const uriRef = formatFieldReference(uriField);
+      const ecidRef = formatFieldReference(ecidField);
+      const processingDurationRef = formatFieldReference(processingDurationField);
+      const durationRef = formatFieldReference(durationField);
+
+      return `${logSetClause} and (${logSourceRef} = saas.fa_appslogger or ${logSourceRef} = saas.fa_wls_wsasync or ${logSourceRef} = saas.fa_wls_access)${suffix} | link span = 1minute Time | addfields [ ${logSourceRef} = saas.fa_appslogger and 'processing order' | stats count(${ecidRef}) as 'Orders Submitted' ], [ ${logSourceRef} = saas.fa_wls_access and ${uriRef} like '/fscmRestApi/resources/11.13.18.05/salesOrdersForOrderHub/DSP:%' | stats count as 'DSP operations on orders' ], [ ${logSourceRef} = saas.fa_wls_access and ${uriRef} like '/fscmrestapi/applcoreapi/search/v1/fa-fscm-item-version/_search%' | stats count as 'Search API calls' ], [ ${logSourceRef} = saas.fa_wls_wsasync and '/fscmService/OrchInfraUtilService?wslazyloading][OperationName:' and 'processed' | stats count as 'Orchestration steps processed' ], [ ${logSourceRef} = saas.fa_wls_wsasync and '/fscmService/OrchInfraUtilService?wslazyloading][OperationName:' | stats avg(${processingDurationRef}) as 'Orchestration processing time (ms)' ], [ ${logSourceRef} = saas.fa_wls_access and ${uriRef} like '/fscmRestApi/resources/11.13.18.05/salesOrdersForOrderHub%' | stats avg(${durationRef}) as 'Orders API response time (seconds)' ], [ ${logSourceRef} = saas.fa_wls_access and ${uriRef} like '/fscmRestApi/resources/11.13.18.05/salesOrdersForOrderHub%' and ${durationRef} > 300 | stats count as 'Orders API timeouts' ], [ ${logSourceRef} = saas.fa_wls_access and ${uriRef} like '/fscmrestapi/applcoreapi/search/v1/fa-fscm-item-version/_search%' | stats avg(${durationRef}) as 'Search API performance' ]`;
     }
   },
   {
@@ -40,10 +136,50 @@ export const queryTemplates = [
     description: "Measure order processing throughput from order submit through orchestration and search calls.",
     requiredFields: ["Log Set"],
     suggestedFields: ["Log Source", "URI", "Status", "Method", "ECID"],
-    queryBuilder: ({ logSet, filterText = "" }) => {
+    queryBuilder: ({ logSet, filterText = "", availableFields = [] }) => {
       const logSetClause = buildLogSetClause(logSet);
       const suffix = filterText ? ` and ${filterText}` : "";
-      return `${logSetClause} and ('Log Source' = saas.fa_appslogger or 'Log Source' = saas.fa_wls_wsasync or 'Log Source' = saas.fa_wls_access)${suffix} | link span = 1minute Time | addfields [ 'Log Source' = saas.fa_wls_access and URI = '/fscmRestApi/resources/11.13.18.05/salesOrdersForOrderHub' and Status = '201' and Method = POST | stats count(ECID) as 'Orders Submitted' ], [ 'Log Source' = saas.fa_wls_access and URI like '/fscmRestApi/resources/11.13.18.05/salesOrdersForOrderHub/DSP:%' | stats count as 'DSP operations on orders' ], [ 'Log Source' = saas.fa_wls_access and URI like '/fscmrestapi/applcoreapi/search/v1/fa-fscm-item-version/_search%' | stats count as 'Search API calls' ], [ 'Log Source' = saas.fa_wls_wsasync and '/fscmService/OrchInfraUtilService?wslazyloading][OperationName:' and 'processed' | stats count as 'Orchestration steps processed' ], [ 'Log Source' = saas.fa_wls_wsasync and '/fscmService/OrchInfraUtilService?wslazyloading][OperationName:' | stats avg(ProcessingDuration) as 'Orchestration processing time (ms)' ], [ 'Log Source' = saas.fa_wls_access and URI like '/fscmRestApi/resources/11.13.18.05/salesOrdersForOrderHub%' | stats avg(Duration) as 'Orders API response time (seconds)' ], [ 'Log Source' = saas.fa_wls_access and URI like '/fscmRestApi/resources/11.13.18.05/salesOrdersForOrderHub%' and Duration > 300 | stats count as 'Orders API timeouts' ], [ 'Log Source' = saas.fa_wls_access and URI like '/fscmrestapi/applcoreapi/search/v1/fa-fscm-item-version/_search%' | stats avg(Duration) as 'Search API performance' ]`;
+      const logSourceField = resolveFieldName(availableFields, ["Log Source"], {
+        required: true,
+        label: "log source field"
+      });
+      const uriField = resolveFieldName(availableFields, ["URI", "Url", "Request URI"], {
+        required: true,
+        label: "URI field"
+      });
+      const statusField = resolveFieldName(availableFields, ["Status", "Status Code"], {
+        required: true,
+        label: "status field"
+      });
+      const methodField = resolveFieldName(availableFields, ["Method", "HTTP Method"], {
+        required: true,
+        label: "method field"
+      });
+      const ecidField = resolveFieldName(availableFields, ["ECID"], {
+        required: true,
+        label: "ECID field"
+      });
+      const processingDurationField = resolveFieldName(
+        availableFields,
+        ["ProcessingDuration", "Processing Duration"],
+        {
+          required: true,
+          label: "processing duration field"
+        }
+      );
+      const durationField = resolveFieldName(availableFields, ["Duration"], {
+        required: true,
+        label: "duration field"
+      });
+      const logSourceRef = formatFieldReference(logSourceField);
+      const uriRef = formatFieldReference(uriField);
+      const statusRef = formatFieldReference(statusField);
+      const methodRef = formatFieldReference(methodField);
+      const ecidRef = formatFieldReference(ecidField);
+      const processingDurationRef = formatFieldReference(processingDurationField);
+      const durationRef = formatFieldReference(durationField);
+
+      return `${logSetClause} and (${logSourceRef} = saas.fa_appslogger or ${logSourceRef} = saas.fa_wls_wsasync or ${logSourceRef} = saas.fa_wls_access)${suffix} | link span = 1minute Time | addfields [ ${logSourceRef} = saas.fa_wls_access and ${uriRef} = '/fscmRestApi/resources/11.13.18.05/salesOrdersForOrderHub' and ${statusRef} = '201' and ${methodRef} = 'POST' | stats count(${ecidRef}) as 'Orders Submitted' ], [ ${logSourceRef} = saas.fa_wls_access and ${uriRef} like '/fscmRestApi/resources/11.13.18.05/salesOrdersForOrderHub/DSP:%' | stats count as 'DSP operations on orders' ], [ ${logSourceRef} = saas.fa_wls_access and ${uriRef} like '/fscmrestapi/applcoreapi/search/v1/fa-fscm-item-version/_search%' | stats count as 'Search API calls' ], [ ${logSourceRef} = saas.fa_wls_wsasync and '/fscmService/OrchInfraUtilService?wslazyloading][OperationName:' and 'processed' | stats count as 'Orchestration steps processed' ], [ ${logSourceRef} = saas.fa_wls_wsasync and '/fscmService/OrchInfraUtilService?wslazyloading][OperationName:' | stats avg(${processingDurationRef}) as 'Orchestration processing time (ms)' ], [ ${logSourceRef} = saas.fa_wls_access and ${uriRef} like '/fscmRestApi/resources/11.13.18.05/salesOrdersForOrderHub%' | stats avg(${durationRef}) as 'Orders API response time (seconds)' ], [ ${logSourceRef} = saas.fa_wls_access and ${uriRef} like '/fscmRestApi/resources/11.13.18.05/salesOrdersForOrderHub%' and ${durationRef} > 300 | stats count as 'Orders API timeouts' ], [ ${logSourceRef} = saas.fa_wls_access and ${uriRef} like '/fscmrestapi/applcoreapi/search/v1/fa-fscm-item-version/_search%' | stats avg(${durationRef}) as 'Search API performance' ]`;
     }
   },
   {
@@ -53,10 +189,33 @@ export const queryTemplates = [
     description: "Find statements or executions with the highest average and max runtime.",
     requiredFields: ["Log Set"],
     suggestedFields: ["DBName", "DBSystemId", "SQL_ID", "Elapsed Time", "DatabaseId"],
-    queryBuilder: ({ logSet, timeSpan = "5minute", filterText = "" }) => {
+    queryBuilder: ({ logSet, timeSpan = "5minute", filterText = "", availableFields = [] }) => {
       const logSetClause = buildLogSetClause(logSet);
       const suffix = filterText ? ` and ${filterText}` : "";
-      return `${logSetClause}${suffix} | link span = ${timeSpan} Time | stats avg('Elapsed Time') as 'Avg Elapsed', max('Elapsed Time') as 'Max Elapsed', count as 'Executions' by SQL_ID, DBName | sort by 'Avg Elapsed' desc | head 20`;
+      const elapsedField = resolveFieldName(availableFields, ["Elapsed Time", "ElapsedTime"], {
+        required: true,
+        label: "elapsed time field"
+      });
+      const sqlIdField = resolveFieldName(availableFields, ["SQL_ID", "SQL ID"], {
+        required: true,
+        label: "SQL ID field",
+        filter: isStatsByCandidate
+      });
+      const dbNameField = resolveFieldName(availableFields, ["DBName", "DB Name", "Database Name"], {
+        filter: isStatsByCandidate
+      });
+      const elapsedRef = formatFieldReference(elapsedField);
+      const groupFields = [sqlIdField, dbNameField]
+        .filter(Boolean)
+        .map((fieldName) => formatFieldReference(fieldName));
+      return `${logSetClause}${suffix} | link span = ${timeSpan} Time | ${buildStatsClause(
+        [
+          `avg(${elapsedRef}) as AvgElapsed`,
+          `max(${elapsedRef}) as MaxElapsed`,
+          "count as Executions"
+        ],
+        groupFields
+      )} | sort -AvgElapsed | head limit=20`;
     }
   },
   {
@@ -66,10 +225,16 @@ export const queryTemplates = [
     description: "Track how many sessions or connections are active over time.",
     requiredFields: ["Log Set"],
     suggestedFields: ["DBName", "DBUser", "ClientHost", "ServiceName"],
-    queryBuilder: ({ logSet, timeSpan = "1minute", filterText = "" }) => {
+    queryBuilder: ({ logSet, timeSpan = "1minute", filterText = "", availableFields = [] }) => {
       const logSetClause = buildLogSetClause(logSet);
       const suffix = filterText ? ` and ${filterText}` : "";
-      return `${logSetClause}${suffix} | link span = ${timeSpan} Time | stats count_distinct(SessionId) as 'Active Sessions' by Time`;
+      const sessionField =
+        resolveFieldName(availableFields, ["Session ID", "SessionId"], {
+          required: true,
+          label: "session identifier field",
+          filter: isStatsByCandidate
+        }) || "Session ID";
+      return `${logSetClause}${suffix} | link span = ${timeSpan} Time | stats distinctcount(${formatFieldReference(sessionField)}) as ActiveSessions by Time`;
     }
   },
   {
@@ -79,10 +244,20 @@ export const queryTemplates = [
     description: "Estimate uptime from heartbeat or health-check style logs.",
     requiredFields: ["Log Set"],
     suggestedFields: ["Host", "ApplicationName", "Status", "Severity"],
-    queryBuilder: ({ logSet, timeSpan = "5minute", filterText = "" }) => {
+    queryBuilder: ({ logSet, timeSpan = "5minute", filterText = "", availableFields = [] }) => {
       const logSetClause = buildLogSetClause(logSet);
       const suffix = filterText ? ` and ${filterText}` : "";
-      return `${logSetClause}${suffix} | link span = ${timeSpan} Time | addfields [ Status = 'UP' or Message like '%healthy%' | stats count as 'Healthy Signals' ], [ Status = 'DOWN' or Message like '%unhealthy%' | stats count as 'Unhealthy Signals' ]`;
+      const statusField = resolveFieldName(availableFields, ["Status", "Status Code"], {
+        required: true,
+        label: "status field"
+      });
+      const messageField = resolveFieldName(availableFields, ["Message"], {
+        required: true,
+        label: "message field"
+      });
+      const statusRef = formatFieldReference(statusField);
+      const messageRef = formatFieldReference(messageField);
+      return `${logSetClause}${suffix} | link span = ${timeSpan} Time | addfields [ ${statusRef} = 'UP' or ${messageRef} like '%healthy%' | stats count as HealthySignals ], [ ${statusRef} = 'DOWN' or ${messageRef} like '%unhealthy%' | stats count as UnhealthySignals ]`;
     }
   },
   {
@@ -91,11 +266,43 @@ export const queryTemplates = [
     category: "Database",
     description: "Identify blockers and the sessions they are impacting.",
     requiredFields: ["Log Set"],
-    suggestedFields: ["BlockingSession", "SessionId", "DBUser", "WaitClass", "EventName"],
-    queryBuilder: ({ logSet, filterText = "" }) => {
+    suggestedFields: ["BlockingSession", "DBUser", "WaitClass", "EventName"],
+    queryBuilder: ({ logSet, field = "", filterText = "", availableFields = [] }) => {
       const logSetClause = buildLogSetClause(logSet);
       const suffix = filterText ? ` and ${filterText}` : "";
-      return `${logSetClause} and BlockingSession is not null${suffix} | stats count as 'Blocked Sessions', values(SessionId) as 'Victims' by BlockingSession, DBUser, EventName | sort by 'Blocked Sessions' desc`;
+      const requestedBlockingField = String(field || "").trim();
+      const blockingCandidates = requestedBlockingField
+        ? [requestedBlockingField]
+        : [
+            "BlockingSession",
+            "Blocking Session",
+            "Blocking Session ID",
+            "Blocking Session Id",
+            "Blocking SID",
+            "Blocking SID Serial",
+            "Blocking Serial",
+            "Blocker Session"
+          ];
+      const blockingField = resolveFieldName(availableFields, blockingCandidates, {
+        required: true,
+        label: requestedBlockingField || "blocking session field",
+        filter: isStatsByCandidate
+      });
+      const dbUserField = resolveFieldName(
+        availableFields,
+        ["DBUser", "DB User", "Database User"],
+        { filter: isStatsByCandidate }
+      );
+      const eventField = resolveFieldName(
+        availableFields,
+        ["EventName", "Event Name", "Wait Event", "Event"],
+        { filter: isStatsByCandidate }
+      );
+      const groupFields = [blockingField, dbUserField, eventField]
+        .filter(Boolean)
+        .map((fieldName) => formatFieldReference(fieldName));
+
+      return `${logSetClause} and ${formatFieldReference(blockingField)} is not null${suffix} | stats count as BlockedSessions by ${groupFields.join(", ")} | sort -BlockedSessions`;
     }
   },
   {
@@ -105,11 +312,20 @@ export const queryTemplates = [
     description: "Search for a known database or system ID and return matching events.",
     requiredFields: ["Log Set", "DatabaseId"],
     suggestedFields: ["DatabaseId", "DBSystemId", "DBName", "Host"],
-    queryBuilder: ({ logSet, field = "DatabaseId", value = "", filterText = "" }) => {
+    queryBuilder: ({ logSet, field = "DatabaseId", value = "", filterText = "", availableFields = [] }) => {
       const logSetClause = buildLogSetClause(logSet);
       const escapedValue = escapeQueryValue(value);
       const suffix = filterText ? ` and ${filterText}` : "";
-      return `${logSetClause} and ${field} = '${escapedValue}'${suffix} | fields Time, ${field}, DBName, Host, Message | sort by Time desc | head 100`;
+      const targetField = resolveFieldName(availableFields, [field], {
+        required: true,
+        label: field
+      });
+      const dbNameField = resolveFieldName(availableFields, ["DBName", "DB Name", "Database Name"]);
+      const hostField = resolveFieldName(availableFields, ["Host", "Hostname"]);
+      const messageField = resolveFieldName(availableFields, ["Message"]);
+      const fieldRef = formatFieldReference(targetField);
+      const projection = buildFieldsClause(["Time", targetField, dbNameField, hostField, messageField]);
+      return `${logSetClause} and ${fieldRef} = '${escapedValue}'${suffix} | fields ${projection} | sort -Time | head limit=100`;
     }
   },
   {
@@ -119,11 +335,40 @@ export const queryTemplates = [
     description: "Show endpoint volume by source system, method, or caller.",
     requiredFields: ["Log Set", "URI"],
     suggestedFields: ["URI", "Method", "Status", "ClientIP", "Source", "ECID"],
-    queryBuilder: ({ logSet, value = "", filterText = "" }) => {
+    queryBuilder: ({ logSet, value = "", filterText = "", availableFields = [] }) => {
       const logSetClause = buildLogSetClause(logSet);
       const escapedValue = escapeQueryValue(value);
       const suffix = filterText ? ` and ${filterText}` : "";
-      return `${logSetClause} and URI like '${escapedValue}'${suffix} | stats count as 'Calls', count_distinct(ECID) as 'Correlated Requests', avg(Duration) as 'Avg Duration' by Source, ClientIP, Method, Status | sort by 'Calls' desc`;
+      const uriField = resolveFieldName(availableFields, ["URI", "Url", "Request URI"], {
+        required: true,
+        label: "URI field"
+      });
+      const ecidField = resolveFieldName(availableFields, ["ECID"]);
+      const durationField = resolveFieldName(availableFields, ["Duration"]);
+      const sourceField = resolveFieldName(availableFields, ["Source", "Caller Source"], {
+        filter: isStatsByCandidate
+      });
+      const clientIpField = resolveFieldName(availableFields, ["ClientIP", "Client IP", "IP Address"], {
+        filter: isStatsByCandidate
+      });
+      const methodField = resolveFieldName(availableFields, ["Method", "HTTP Method"], {
+        filter: isStatsByCandidate
+      });
+      const statusField = resolveFieldName(availableFields, ["Status", "Status Code"], {
+        filter: isStatsByCandidate
+      });
+      const statsExpressions = [
+        "count as Calls",
+        ecidField ? `distinctcount(${formatFieldReference(ecidField)}) as CorrelatedRequests` : null,
+        durationField ? `avg(${formatFieldReference(durationField)}) as AvgDuration` : null
+      ];
+      const groupFields = [sourceField, clientIpField, methodField, statusField]
+        .filter(Boolean)
+        .map((fieldName) => formatFieldReference(fieldName));
+      return `${logSetClause} and ${formatFieldReference(uriField)} like '${escapedValue}'${suffix} | ${buildStatsClause(
+        statsExpressions,
+        groupFields
+      )} | sort -Calls`;
     }
   }
 ];

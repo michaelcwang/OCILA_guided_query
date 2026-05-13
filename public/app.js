@@ -19,7 +19,7 @@ const QUERY_INTENT_HINTS = [
   },
   {
     label: "Database connection trend",
-    patterns: ["count_distinct(sessionid)", "active sessions"]
+    patterns: ["distinctcount('session id')", "active sessions"]
   },
   {
     label: "Blocking session analysis",
@@ -299,7 +299,7 @@ function analyzeQueryText(queryText) {
   const addfieldsCount = [...cleanQuery.matchAll(/\baddfields\b/gi)].length;
   const addfieldBlocks = [...cleanQuery.matchAll(/\[[^\]]+\]/g)].length;
   const aggregations = unique(
-    [...cleanQuery.matchAll(/\b(count_distinct|count|avg|max|min|sum|values)\s*\(/gi)].map(
+    [...cleanQuery.matchAll(/\b(distinctcount|count|avg|max|min|sum|values)\s*\(/gi)].map(
       (match) => match[1]
     )
   );
@@ -313,8 +313,8 @@ function analyzeQueryText(queryText) {
       .flatMap((match) => match[1].split(","))
       .map((item) => item.trim().replace(/^'|'$/g, ""))
   );
-  const sortField = cleanQuery.match(/\bsort\s+by\s+([^|]+?)(?:\s+(asc|desc))?(?:\s*\||$)/i);
-  const headLimit = cleanQuery.match(/\bhead\s+(\d+)/i)?.[1] || null;
+  const sortField = cleanQuery.match(/\bsort\s+([+-])\s*([^|]+?)(?:\s*\||$)/i);
+  const headLimit = cleanQuery.match(/\bhead\s+limit\s*=\s*(\d+)/i)?.[1] || null;
   const thresholdFilters = unique(
     [...cleanQuery.matchAll(/\b([A-Za-z_][A-Za-z0-9_ ]*)\s*(>=|<=|>|<)\s*([0-9.]+)/g)].map(
       (match) => `${match[1].trim()} ${match[2]} ${match[3]}`
@@ -376,7 +376,7 @@ function analyzeQueryText(queryText) {
   }
   if (sortField) {
     walkthrough.push(
-      `Ordering: sorted by ${sortField[1].trim()}${sortField[2] ? ` ${sortField[2].toUpperCase()}` : ""}.`
+      `Ordering: sorted by ${sortField[2].trim()} ${sortField[1] === "-" ? "DESC" : "ASC"}.`
     );
   }
   if (headLimit) {

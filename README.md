@@ -123,7 +123,7 @@ The user-facing help content lives under `public/help/`:
 - `template-guides.json`
   - Explains what each investigation template is trying to answer, how to read it, what signals matter, and what to do next
 - `query-glossary.json`
-  - Explains common OCILA query concepts such as `link span`, `stats`, `addfields`, `count_distinct`, `ECID`, and `Duration`
+  - Explains common OCILA query concepts such as `link span`, `stats`, `addfields`, `distinctcount`, `ECID`, and `Duration`
 
 ## Sensitive data guidance
 

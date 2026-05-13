@@ -121,6 +121,25 @@ export const mockFields = [
     isSystem: false
   },
   {
+    name: "SQL_ID",
+    displayName: "SQL_ID",
+    dataType: "STRING",
+    isFacetEligible: true,
+    isTableEligible: true,
+    isSummarizable: true,
+    isSystem: false
+  },
+  {
+    name: "Elapsed Time",
+    displayName: "Elapsed Time",
+    dataType: "NUMBER",
+    isFacetEligible: true,
+    isTableEligible: true,
+    isSummarizable: true,
+    isMetricValueEligible: true,
+    isSystem: false
+  },
+  {
     name: "DBUser",
     displayName: "DBUser",
     dataType: "STRING",
@@ -130,12 +149,30 @@ export const mockFields = [
     isSystem: false
   },
   {
-    name: "SessionId",
-    displayName: "SessionId",
+    name: "Session ID",
+    displayName: "Session ID",
     dataType: "STRING",
     isFacetEligible: true,
     isHighCardinality: true,
     isTableEligible: true,
+    isSystem: false
+  },
+  {
+    name: "ClientHost",
+    displayName: "ClientHost",
+    dataType: "STRING",
+    isFacetEligible: true,
+    isTableEligible: true,
+    isSummarizable: true,
+    isSystem: false
+  },
+  {
+    name: "ServiceName",
+    displayName: "ServiceName",
+    dataType: "STRING",
+    isFacetEligible: true,
+    isTableEligible: true,
+    isSummarizable: true,
     isSystem: false
   },
   {
@@ -145,6 +182,16 @@ export const mockFields = [
     isFacetEligible: true,
     isTableEligible: true,
     isSummarizable: true,
+    isSystem: false
+  },
+  {
+    name: "ProcessingDuration",
+    displayName: "ProcessingDuration",
+    dataType: "NUMBER",
+    isFacetEligible: true,
+    isTableEligible: true,
+    isSummarizable: true,
+    isMetricValueEligible: true,
     isSystem: false
   },
   {
@@ -217,17 +264,17 @@ export function buildMockResults(queryText) {
 
   if (normalized.includes("blockingsession")) {
     return {
-      columns: ["BlockingSession", "DBUser", "EventName", "Blocked Sessions", "Victims"],
+      columns: ["BlockingSession", "DBUser", "EventName", "BlockedSessions"],
       rows: [
-        ["8342", "ORDER_APP", "enq: TX - row lock contention", 7, "20111,20119,20141"],
-        ["9144", "FIN_USER", "buffer busy waits", 3, "30222,30228,30235"]
+        ["8342", "ORDER_APP", "enq: TX - row lock contention", 7],
+        ["9144", "FIN_USER", "buffer busy waits", 3]
       ]
     };
   }
 
   if (normalized.includes("uri like")) {
     return {
-      columns: ["Source", "ClientIP", "Method", "Status", "Calls", "Correlated Requests", "Avg Duration"],
+      columns: ["Source", "ClientIP", "Method", "Status", "Calls", "CorrelatedRequests", "AvgDuration"],
       rows: [
         ["OIC", "10.1.4.12", "POST", "201", 132, 118, 1.84],
         ["ERPUI", "10.1.8.45", "GET", "200", 88, 80, 0.42],
@@ -236,9 +283,9 @@ export function buildMockResults(queryText) {
     };
   }
 
-  if (normalized.includes("sessionid")) {
+  if (normalized.includes("session id")) {
     return {
-      columns: ["Time", "Active Sessions"],
+      columns: ["Time", "ActiveSessions"],
       rows: [
         ["2026-05-11T10:00:00Z", 42],
         ["2026-05-11T10:01:00Z", 47],
@@ -249,7 +296,7 @@ export function buildMockResults(queryText) {
 
   if (normalized.includes("elapsed time")) {
     return {
-      columns: ["SQL_ID", "DBName", "Avg Elapsed", "Max Elapsed", "Executions"],
+      columns: ["SQL_ID", "DBName", "AvgElapsed", "MaxElapsed", "Executions"],
       rows: [
         ["4w9s8bpq1m3x7", "ORDERHUBDB", 12834, 40192, 19],
         ["8v2f1hpq6b9k2", "FUSIONDB1", 9831, 22014, 11],

@@ -36,8 +36,8 @@
     "description": "Counts matching events. It is the first thing to look at when you want throughput or error volume."
   },
   {
-    "term": "count_distinct",
-    "aliases": ["count_distinct("],
+    "term": "distinctcount",
+    "aliases": ["distinctcount("],
     "category": "Aggregation",
     "description": "Counts unique values, which is useful for sessions, ECIDs, users, or hosts."
   },
@@ -72,16 +72,16 @@
     "description": "Chooses which columns to keep in the output so you can reduce noise and focus on the data that matters."
   },
   {
-    "term": "sort by",
-    "aliases": ["sort by"],
+    "term": "sort",
+    "aliases": ["sort +", "sort -", "sort "],
     "category": "Ordering",
-    "description": "Orders the results so the most important rows appear first, such as highest latency or highest volume."
+    "description": "Orders the results so the most important rows appear first. Use sort - for descending and sort + for ascending."
   },
   {
     "term": "head",
     "aliases": ["head "],
     "category": "Ordering",
-    "description": "Keeps only the top portion of the sorted output, usually the most important rows to review first."
+    "description": "Keeps only the top portion of the sorted output, usually written as head limit=N."
   },
   {
     "term": "ECID",

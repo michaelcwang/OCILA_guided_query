@@ -55,38 +55,42 @@ app.post("/api/suggest", async (req, res) => {
 });
 
 app.post("/api/template-query", (req, res) => {
-  try {
-    const { query, template } = buildQueryFromPayload(req.body || {});
-    return res.json({
-      query,
-      templateId: template?.id || null
+  listFields()
+    .then((fields) => {
+      const { query, template } = buildQueryFromPayload(req.body || {}, { availableFields: fields });
+      return res.json({
+        query,
+        templateId: template?.id || null
+      });
+    })
+    .catch((error) => {
+      const statusCode = error.message.includes("required") || error.message.includes("resolve") ? 400 : 404;
+      return res.status(statusCode).json({ error: error.message });
     });
-  } catch (error) {
-    const statusCode = error.message.includes("required") ? 400 : 404;
-    return res.status(statusCode).json({ error: error.message });
-  }
 });
 
 app.post("/api/cli-query", (req, res) => {
-  try {
-    const builtQuery = buildQueryFromPayload(req.body || {});
-    const cli = buildCliRequest({
-      ...req.body,
-      queryText: builtQuery.query
-    });
+  listFields()
+    .then((fields) => {
+      const builtQuery = buildQueryFromPayload(req.body || {}, { availableFields: fields });
+      const cli = buildCliRequest({
+        ...req.body,
+        queryText: builtQuery.query
+      });
 
-    return res.json({
-      query: builtQuery.query,
-      querySource: builtQuery.querySource,
-      templateId: builtQuery.template?.id || null,
-      visualization: builtQuery.visualization,
-      selectedFields: builtQuery.selectedFields,
-      cli
+      return res.json({
+        query: builtQuery.query,
+        querySource: builtQuery.querySource,
+        templateId: builtQuery.template?.id || null,
+        visualization: builtQuery.visualization,
+        selectedFields: builtQuery.selectedFields,
+        cli
+      });
+    })
+    .catch((error) => {
+      const statusCode = error.message.includes("required") || error.message.includes("resolve") ? 400 : 404;
+      return res.status(statusCode).json({ error: error.message });
     });
-  } catch (error) {
-    const statusCode = error.message.includes("required") ? 400 : 404;
-    return res.status(statusCode).json({ error: error.message });
-  }
 });
 
 app.post("/api/query", async (req, res) => {

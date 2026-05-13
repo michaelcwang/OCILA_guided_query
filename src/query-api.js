@@ -44,7 +44,7 @@ function toIsoStringOrNull(value) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-export function buildQueryFromPayload(payload = {}) {
+export function buildQueryFromPayload(payload = {}, options = {}) {
   const {
     templateId,
     logSet,
@@ -75,7 +75,8 @@ export function buildQueryFromPayload(payload = {}) {
       field,
       value,
       timeSpan,
-      filterText
+      filterText,
+      availableFields: options.availableFields || []
     });
     source = "template";
   }
