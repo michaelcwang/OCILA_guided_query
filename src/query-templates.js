@@ -52,7 +52,7 @@ function resolveFieldName(availableFields, candidates, options = {}) {
 }
 
 function isStatsByCandidate(field) {
-  return Boolean(field?.isFacetEligible || field?.isSummarizable || field?.isTableEligible);
+  return Boolean(field?.isFacetEligible || field?.isSummarizable);
 }
 
 function buildStatsClause(statExpressions, groupFields = []) {
