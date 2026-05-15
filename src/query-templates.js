@@ -231,8 +231,7 @@ export const queryTemplates = [
       const sessionField =
         resolveFieldName(availableFields, ["Session ID", "SessionId"], {
           required: true,
-          label: "session identifier field",
-          filter: isStatsByCandidate
+          label: "session identifier field"
         }) || "Session ID";
       return `${logSetClause}${suffix} | link span = ${timeSpan} Time | stats distinctcount(${formatFieldReference(sessionField)}) as ActiveSessions by Time`;
     }

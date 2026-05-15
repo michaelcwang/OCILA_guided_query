@@ -133,6 +133,7 @@ const els = {
   saveQueryButton: document.querySelector("#saveQueryButton"),
   clearHistoryButton: document.querySelector("#clearHistoryButton"),
   analyzeQueryButton: document.querySelector("#analyzeQueryButton"),
+  copyQueryButton: document.querySelector("#copyQueryButton"),
   refreshAutomationButton: document.querySelector("#refreshAutomationButton"),
   copyApiPayloadButton: document.querySelector("#copyApiPayloadButton"),
   copyCliCommandButton: document.querySelector("#copyCliCommandButton"),
@@ -194,6 +195,16 @@ function parseVisualizationDirective(queryText) {
 
 function stripVisualizationDirective(queryText) {
   return queryText.replace(VISUALIZATION_RE, "");
+}
+
+function escapeQueryValue(value) {
+  return value.replaceAll("'", "\\'");
+}
+
+function formatFieldReference(fieldName) {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(fieldName)
+    ? fieldName
+    : `'${escapeQueryValue(fieldName)}'`;
 }
 
 function applyVisualizationDirective(queryText, visualization) {
@@ -1210,6 +1221,37 @@ async function copyOutputValue(textarea, label) {
   els.automationMeta.textContent = `${label} copied to clipboard.`;
 }
 
+async function copyGeneratedQuery() {
+  const queryText = stripVisualizationDirective(els.queryEditor.value).trim();
+  if (!queryText) {
+    els.resultsMeta.textContent = "No generated query is available to copy.";
+    return;
+  }
+
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(queryText);
+  } else {
+    const originalReadOnly = els.queryEditor.hasAttribute("readonly");
+    els.queryEditor.removeAttribute("readonly");
+    els.queryEditor.focus();
+    els.queryEditor.select();
+    document.execCommand("copy");
+    if (originalReadOnly) {
+      els.queryEditor.setAttribute("readonly", "readonly");
+    }
+  }
+
+  els.resultsMeta.textContent = "Generated query copied to clipboard.";
+}
+
+async function handleCopyGeneratedQuery() {
+  try {
+    await copyGeneratedQuery();
+  } catch (error) {
+    els.resultsMeta.textContent = `Unable to copy generated query: ${error.message}`;
+  }
+}
+
 function fetchSavedQueries() {
   try {
     return JSON.parse(localStorage.getItem(QUERY_HISTORY_KEY) || "[]");
@@ -1450,7 +1492,7 @@ async function buildTemplateQuery() {
   });
 
   const selectedFieldsClause = state.selectedFields.length
-    ? ` | fields ${state.selectedFields.join(", ")}`
+    ? ` | fields ${state.selectedFields.map(formatFieldReference).join(", ")}`
     : "";
   els.queryEditor.value = applyVisualizationDirective(
     `${data.query}${selectedFieldsClause}`,
@@ -1506,7 +1548,7 @@ async function suggestForEditor() {
 function applySelectedFields() {
   const queryBody = stripVisualizationDirective(els.queryEditor.value);
   const clause = state.selectedFields.length
-    ? ` | fields ${state.selectedFields.join(", ")}`
+    ? ` | fields ${state.selectedFields.map(formatFieldReference).join(", ")}`
     : "";
   const stripped = queryBody.replace(/\s+\|\s+fields\s+[^|]+$/i, "");
   els.queryEditor.value = applyVisualizationDirective(
@@ -1574,6 +1616,7 @@ els.saveQueryButton.addEventListener("click", saveCurrentQuery);
 els.clearHistoryButton.addEventListener("click", clearSavedQueries);
 els.applyFieldsButton.addEventListener("click", applySelectedFields);
 els.analyzeQueryButton.addEventListener("click", renderQueryAnalysis);
+els.copyQueryButton.addEventListener("click", handleCopyGeneratedQuery);
 els.refreshAutomationButton.addEventListener("click", async () => {
   await refreshAutomationPanel();
 });

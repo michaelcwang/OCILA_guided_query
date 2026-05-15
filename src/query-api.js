@@ -20,6 +20,16 @@ function normalizeSelectedFields(selectedFields) {
   return [...new Set(selectedFields.map((item) => String(item || "").trim()).filter(Boolean))];
 }
 
+function escapeQueryValue(value) {
+  return value.replaceAll("'", "\\'");
+}
+
+function formatFieldReference(fieldName) {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(fieldName)
+    ? fieldName
+    : `'${escapeQueryValue(fieldName)}'`;
+}
+
 function applySelectedFields(queryText, selectedFields) {
   const normalizedFields = normalizeSelectedFields(selectedFields);
   const strippedQuery = String(queryText).replace(/\s+\|\s+fields\s+[^|]+$/i, "").trim();
@@ -28,7 +38,7 @@ function applySelectedFields(queryText, selectedFields) {
     return strippedQuery;
   }
 
-  return `${strippedQuery} | fields ${normalizedFields.join(", ")}`;
+  return `${strippedQuery} | fields ${normalizedFields.map(formatFieldReference).join(", ")}`;
 }
 
 function shellQuote(value) {
