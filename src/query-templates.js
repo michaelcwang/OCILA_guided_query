@@ -33,7 +33,10 @@ function resolveFieldName(availableFields, candidates, options = {}) {
     }
     const names = [field?.displayName, field?.name].filter(Boolean);
     for (const name of names) {
-      lookup.set(normalizeFieldToken(name), name);
+      const token = normalizeFieldToken(name);
+      if (!lookup.has(token)) {
+        lookup.set(token, name);
+      }
     }
   }
 
@@ -53,6 +56,21 @@ function resolveFieldName(availableFields, candidates, options = {}) {
 
 function isStatsByCandidate(field) {
   return Boolean(field?.isFacetEligible || field?.isSummarizable);
+}
+
+function isNumericAggregateCandidate(field) {
+  const dataType = String(field?.dataType || "").toUpperCase();
+  return Boolean(field?.isMetricValueEligible || field?.isSummarizable || dataType === "NUMBER");
+}
+
+function isLikelyBlockingField(fieldName) {
+  const normalized = normalizeFieldToken(fieldName);
+  return normalized.includes("block") || normalized.includes("blocking");
+}
+
+function isLikelyDatabaseLookupField(fieldName) {
+  const normalized = normalizeFieldToken(fieldName);
+  return normalized.includes("database") || normalized.includes("db");
 }
 
 function buildStatsClause(statExpressions, groupFields = []) {
@@ -194,18 +212,16 @@ export const queryTemplates = [
       const suffix = filterText ? ` and ${filterText}` : "";
       const elapsedField = resolveFieldName(availableFields, ["Elapsed Time", "ElapsedTime"], {
         required: true,
-        label: "elapsed time field"
+        label: "elapsed time field",
+        filter: isNumericAggregateCandidate
       });
       const sqlIdField = resolveFieldName(availableFields, ["SQL_ID", "SQL ID"], {
         required: true,
         label: "SQL ID field",
         filter: isStatsByCandidate
       });
-      const dbNameField = resolveFieldName(availableFields, ["DBName", "DB Name", "Database Name"], {
-        filter: isStatsByCandidate
-      });
       const elapsedRef = formatFieldReference(elapsedField);
-      const groupFields = [sqlIdField, dbNameField]
+      const groupFields = [sqlIdField]
         .filter(Boolean)
         .map((fieldName) => formatFieldReference(fieldName));
       return `${logSetClause}${suffix} | link span = ${timeSpan} Time | ${buildStatsClause(
@@ -270,38 +286,27 @@ export const queryTemplates = [
       const logSetClause = buildLogSetClause(logSet);
       const suffix = filterText ? ` and ${filterText}` : "";
       const requestedBlockingField = String(field || "").trim();
-      const blockingCandidates = requestedBlockingField
-        ? [requestedBlockingField]
-        : [
-            "BlockingSession",
-            "Blocking Session",
-            "Blocking Session ID",
-            "Blocking Session Id",
-            "Blocking SID",
-            "Blocking SID Serial",
-            "Blocking Serial",
-            "Blocker Session"
-          ];
+      const defaultBlockingCandidates = [
+        "BlockingSession",
+        "Blocking Session",
+        "Blocking Session ID",
+        "Blocking Session Id",
+        "Blocking SID",
+        "Blocking SID Serial",
+        "Blocking Serial",
+        "Blocker Session"
+      ];
+      const blockingCandidates = isLikelyBlockingField(requestedBlockingField)
+        ? [requestedBlockingField, ...defaultBlockingCandidates]
+        : defaultBlockingCandidates;
       const blockingField = resolveFieldName(availableFields, blockingCandidates, {
         required: true,
-        label: requestedBlockingField || "blocking session field",
+        label: "blocking session field",
         filter: isStatsByCandidate
       });
-      const dbUserField = resolveFieldName(
-        availableFields,
-        ["DBUser", "DB User", "Database User"],
-        { filter: isStatsByCandidate }
-      );
-      const eventField = resolveFieldName(
-        availableFields,
-        ["EventName", "Event Name", "Wait Event", "Event"],
-        { filter: isStatsByCandidate }
-      );
-      const groupFields = [blockingField, dbUserField, eventField]
-        .filter(Boolean)
-        .map((fieldName) => formatFieldReference(fieldName));
+      const blockingRef = formatFieldReference(blockingField);
 
-      return `${logSetClause} and ${formatFieldReference(blockingField)} is not null${suffix} | stats count as BlockedSessions by ${groupFields.join(", ")} | sort -BlockedSessions`;
+      return `${logSetClause} and ${blockingRef} is not null${suffix} | stats count as BlockedSessions by ${blockingRef} | sort -BlockedSessions`;
     }
   },
   {
@@ -315,9 +320,13 @@ export const queryTemplates = [
       const logSetClause = buildLogSetClause(logSet);
       const escapedValue = escapeQueryValue(value);
       const suffix = filterText ? ` and ${filterText}` : "";
-      const targetField = resolveFieldName(availableFields, [field], {
+      const requestedField = String(field || "").trim();
+      const targetCandidates = isLikelyDatabaseLookupField(requestedField)
+        ? [requestedField, "DatabaseId", "Database ID", "DBSystemId", "DB System ID", "DBName", "DB Name"]
+        : ["DatabaseId", "Database ID", "DBSystemId", "DB System ID", "DBName", "DB Name"];
+      const targetField = resolveFieldName(availableFields, targetCandidates, {
         required: true,
-        label: field
+        label: "database lookup field"
       });
       const dbNameField = resolveFieldName(availableFields, ["DBName", "DB Name", "Database Name"]);
       const hostField = resolveFieldName(availableFields, ["Host", "Hostname"]);
