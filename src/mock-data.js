@@ -296,11 +296,11 @@ export function buildMockResults(queryText) {
 
   if (normalized.includes("elapsed time")) {
     return {
-      columns: ["SQL_ID", "DBName", "AvgElapsed", "MaxElapsed", "Executions"],
+      columns: ["Time", "Elapsed Time", "SQL_ID", "DBName", "DBSystemId", "Message"],
       rows: [
-        ["4w9s8bpq1m3x7", "ORDERHUBDB", 12834, 40192, 19],
-        ["8v2f1hpq6b9k2", "FUSIONDB1", 9831, 22014, 11],
-        ["9a4j3ccn5v7m1", "FINDB", 7420, 14002, 9]
+        ["2026-05-11T10:02:14Z", 40192, "4w9s8bpq1m3x7", "ORDERHUBDB", "dbsystem-orderhub", "High elapsed SQL execution"],
+        ["2026-05-11T10:01:44Z", 22014, "8v2f1hpq6b9k2", "FUSIONDB1", "dbsystem-fusion", "Slow query execution"],
+        ["2026-05-11T10:00:31Z", 14002, "9a4j3ccn5v7m1", "FINDB", "dbsystem-fin", "Long running statement"]
       ]
     };
   }

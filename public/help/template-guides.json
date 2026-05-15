@@ -71,11 +71,11 @@
   },
   {
     "id": "slow-db-queries",
-    "analystGoal": "Find the SQL statements contributing most to database latency.",
+    "analystGoal": "Find the slowest database executions with SQL and database context.",
     "useWhen": [
-      "Users report slowness and you need to identify expensive SQL IDs.",
+      "Users report slowness and you need to identify expensive executions.",
       "A database tier looks healthy on CPU but response times are still high.",
-      "You want the top statements by average and max elapsed time."
+      "You want the top events by elapsed time without relying on stats grouping."
     ],
     "readingSteps": [
       {
@@ -83,18 +83,18 @@
         "explanation": "The pod-level filter keeps the workload context consistent."
       },
       {
-        "label": "Trend then aggregate",
-        "explanation": "The time link span organizes activity into buckets before the stats clause computes summary values."
+        "label": "Require elapsed time",
+        "explanation": "The elapsed-time filter keeps the result focused on events that can be ranked by runtime."
       },
       {
-        "label": "Group by SQL_ID and DBName",
-        "explanation": "Grouping tells you which statement on which database is contributing the most elapsed time."
+        "label": "Sort slowest first",
+        "explanation": "Sorting by elapsed time returns the highest-runtime executions first while avoiding tenancy-specific stats-by restrictions."
       }
     ],
     "signals": [
-      "High average elapsed time with many executions is usually more urgent than a single high max elapsed event.",
+      "Repeated appearances of the same SQL ID near the top usually deserve follow-up.",
       "One SQL_ID dominating multiple pods may point to application code or plan issues.",
-      "Large max elapsed with low execution count often indicates intermittent blocking or plan instability."
+      "Single very slow executions often indicate intermittent blocking or plan instability."
     ],
     "followUps": [
       "Pivot to blocking sessions if max elapsed spikes are isolated.",

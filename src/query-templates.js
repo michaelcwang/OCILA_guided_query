@@ -204,10 +204,10 @@ export const queryTemplates = [
     id: "slow-db-queries",
     label: "Slow Running DB Queries",
     category: "Database",
-    description: "Find statements or executions with the highest average and max runtime.",
+    description: "Find executions with the highest elapsed runtime.",
     requiredFields: ["Log Set"],
     suggestedFields: ["DBName", "DBSystemId", "SQL_ID", "Elapsed Time", "DatabaseId"],
-    queryBuilder: ({ logSet, timeSpan = "5minute", filterText = "", availableFields = [] }) => {
+    queryBuilder: ({ logSet, filterText = "", availableFields = [] }) => {
       const logSetClause = buildLogSetClause(logSet);
       const suffix = filterText ? ` and ${filterText}` : "";
       const elapsedField = resolveFieldName(availableFields, ["Elapsed Time", "ElapsedTime"], {
@@ -215,23 +215,20 @@ export const queryTemplates = [
         label: "elapsed time field",
         filter: isNumericAggregateCandidate
       });
-      const sqlIdField = resolveFieldName(availableFields, ["SQL_ID", "SQL ID"], {
-        required: true,
-        label: "SQL ID field",
-        filter: isStatsByCandidate
-      });
+      const sqlIdField = resolveFieldName(availableFields, ["SQL_ID", "SQL ID"]);
+      const dbNameField = resolveFieldName(availableFields, ["DBName", "DB Name", "Database Name"]);
+      const dbSystemIdField = resolveFieldName(availableFields, ["DBSystemId", "DB System ID"]);
+      const messageField = resolveFieldName(availableFields, ["Message"]);
       const elapsedRef = formatFieldReference(elapsedField);
-      const groupFields = [sqlIdField]
-        .filter(Boolean)
-        .map((fieldName) => formatFieldReference(fieldName));
-      return `${logSetClause}${suffix} | link span = ${timeSpan} Time | ${buildStatsClause(
-        [
-          `avg(${elapsedRef}) as AvgElapsed`,
-          `max(${elapsedRef}) as MaxElapsed`,
-          "count as Executions"
-        ],
-        groupFields
-      )} | sort -AvgElapsed | head limit=20`;
+      const projection = buildFieldsClause([
+        "Time",
+        elapsedField,
+        sqlIdField,
+        dbNameField,
+        dbSystemIdField,
+        messageField
+      ]);
+      return `${logSetClause} and ${elapsedRef} is not null${suffix} | fields ${projection} | sort -${elapsedRef} | head limit=20`;
     }
   },
   {
