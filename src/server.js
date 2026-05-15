@@ -13,6 +13,15 @@ const publicDir = path.join(__dirname, "..", "public");
 const app = express();
 
 app.use(express.json());
+app.use((error, _req, res, next) => {
+  if (error instanceof SyntaxError && error.status === 400 && "body" in error) {
+    return res.status(400).json({
+      error: "Malformed JSON request body."
+    });
+  }
+
+  return next(error);
+});
 app.use(express.static(publicDir));
 
 app.get("/api/health", (_req, res) => {
