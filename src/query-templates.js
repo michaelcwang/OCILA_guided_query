@@ -80,10 +80,24 @@ function buildStatsClause(statExpressions, groupFields = []) {
 }
 
 function buildFieldsClause(fieldNames) {
-  return fieldNames
-    .filter(Boolean)
-    .map((fieldName) => formatFieldReference(fieldName))
-    .join(", ");
+  const seen = new Set();
+  const fields = [];
+
+  for (const fieldName of fieldNames) {
+    if (!fieldName) {
+      continue;
+    }
+
+    const token = normalizeFieldToken(fieldName);
+    if (seen.has(token)) {
+      continue;
+    }
+
+    seen.add(token);
+    fields.push(formatFieldReference(fieldName));
+  }
+
+  return fields.join(", ");
 }
 
 function buildLogSetClause(logSetInput) {

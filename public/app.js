@@ -226,6 +226,13 @@ function unique(items) {
   return [...new Set(items.filter(Boolean))];
 }
 
+function normalizeToken(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replaceAll(/['"`]/g, "")
+    .replaceAll(/[^a-z0-9]/g, "");
+}
+
 function debounce(fn, waitMs) {
   let timeoutId = null;
 
@@ -703,6 +710,130 @@ function renderSuggestions(items) {
   }
 }
 
+function columnIndex(columns, candidates) {
+  const wanted = candidates.map(normalizeToken);
+  return columns.findIndex((column) => wanted.includes(normalizeToken(column)));
+}
+
+function rowValue(columns, row, candidates) {
+  const index = columnIndex(columns, candidates);
+  if (index === -1) {
+    return null;
+  }
+
+  const value = row[index];
+  return value == null || value === "" ? null : value;
+}
+
+function appendTopLevelFilter(queryText, fieldName, value) {
+  const cleanQuery = stripVisualizationDirective(queryText).trim();
+  const pipeIndex = cleanQuery.indexOf("|");
+  const filter = `${formatFieldReference(fieldName)} = '${escapeQueryValue(String(value))}'`;
+
+  if (pipeIndex === -1) {
+    return `${cleanQuery} and ${filter}`;
+  }
+
+  const baseFilter = cleanQuery.slice(0, pipeIndex).trim();
+  const pipeline = cleanQuery.slice(pipeIndex).trimStart();
+  return `${baseFilter} and ${filter} ${pipeline}`;
+}
+
+function applyDrilldownQuery(queryText, message) {
+  els.queryEditor.value = applyVisualizationDirective(queryText, currentVisualization());
+  renderTrainingGuide();
+  renderQueryAnalysis();
+  refreshAutomationPanel({ silent: true });
+  els.resultsMeta.textContent = message;
+}
+
+async function buildDatabaseLookupDrilldown(fieldName, value) {
+  const data = await fetchJson("/api/template-query", {
+    method: "POST",
+    body: JSON.stringify({
+      templateId: "database-id-lookup",
+      logSet: els.logSetInput.value.trim(),
+      field: fieldName,
+      value: String(value),
+      filterText: els.filterTextInput.value
+    })
+  });
+
+  els.templateSelect.value = "database-id-lookup";
+  if ([...els.fieldSelect.options].some((option) => option.value === fieldName)) {
+    els.fieldSelect.value = fieldName;
+  }
+  els.fieldValueInput.value = String(value);
+  applyDrilldownQuery(data.query, `Drill-down prepared for ${fieldName} = ${value}.`);
+  els.resultsMeta.textContent = `Drill-down prepared for ${fieldName} = ${value}.`;
+}
+
+function drilldownActionsForRow(columns, row) {
+  const templateId = els.templateSelect.value;
+  const actions = [];
+
+  if (templateId === "slow-db-queries") {
+    const sqlId = rowValue(columns, row, ["SQL_ID", "SQL ID"]);
+    if (sqlId) {
+      actions.push({
+        label: "SQL",
+        title: `Filter current query to SQL_ID ${sqlId}`,
+        run: () => {
+          applyDrilldownQuery(
+            appendTopLevelFilter(els.queryEditor.value, "SQL_ID", sqlId),
+            `Drill-down prepared for SQL_ID = ${sqlId}.`
+          );
+        }
+      });
+    }
+  }
+
+  if (templateId === "blocking-sessions") {
+    const blocker = rowValue(columns, row, [
+      "BlockingSession",
+      "Blocking Session",
+      "Blocking Session ID",
+      "Blocking SID"
+    ]);
+    if (blocker) {
+      actions.push({
+        label: "Blocker",
+        title: `Filter current query to blocker ${blocker}`,
+        run: () => {
+          const blockerColumn = columns[columnIndex(columns, [
+            "BlockingSession",
+            "Blocking Session",
+            "Blocking Session ID",
+            "Blocking SID"
+          ])];
+          applyDrilldownQuery(
+            appendTopLevelFilter(els.queryEditor.value, blockerColumn || "BlockingSession", blocker),
+            `Drill-down prepared for blocker ${blocker}.`
+          );
+        }
+      });
+    }
+  }
+
+  for (const [fieldName, candidates] of [
+    ["DatabaseId", ["DatabaseId", "Database ID"]],
+    ["DBSystemId", ["DBSystemId", "DB System ID"]],
+    ["DBName", ["DBName", "DB Name", "Database Name"]]
+  ]) {
+    const value = rowValue(columns, row, candidates);
+    if (value) {
+      actions.push({
+        label: fieldName,
+        title: `Build database lookup for ${fieldName} ${value}`,
+        run: () => buildDatabaseLookupDrilldown(fieldName, value)
+      });
+      break;
+    }
+  }
+
+  return actions;
+}
+
 function renderTable(columns, rows) {
   if (!rows.length) {
     els.resultsTableWrap.className = "results-table-wrap empty";
@@ -714,10 +845,17 @@ function renderTable(columns, rows) {
   const thead = document.createElement("thead");
   const tbody = document.createElement("tbody");
   const headRow = document.createElement("tr");
+  const hasDrilldowns = rows.some((row) => drilldownActionsForRow(columns, row).length);
 
   for (const column of columns) {
     const th = document.createElement("th");
     th.textContent = column;
+    headRow.append(th);
+  }
+
+  if (hasDrilldowns) {
+    const th = document.createElement("th");
+    th.textContent = "Drill Down";
     headRow.append(th);
   }
 
@@ -729,6 +867,32 @@ function renderTable(columns, rows) {
     for (const value of row) {
       const td = document.createElement("td");
       td.textContent = value == null ? "" : String(value);
+      tr.append(td);
+    }
+
+    if (hasDrilldowns) {
+      const td = document.createElement("td");
+      const actions = drilldownActionsForRow(columns, row);
+      if (actions.length) {
+        const actionRow = document.createElement("div");
+        actionRow.className = "row-action-list";
+        for (const action of actions) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "row-action-button";
+          button.textContent = action.label;
+          button.title = action.title;
+          button.addEventListener("click", async () => {
+            try {
+              await action.run();
+            } catch (error) {
+              els.resultsMeta.textContent = error.message;
+            }
+          });
+          actionRow.append(button);
+        }
+        td.append(actionRow);
+      }
       tr.append(td);
     }
 
