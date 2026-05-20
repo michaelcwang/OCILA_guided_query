@@ -11,10 +11,10 @@
       <header class="hero">
         <div>
           <p class="eyebrow">OCI Log Analytics</p>
-          <h1>Guided query builder for operators, not query-language experts.</h1>
+          <h1>Guided Query Builder</h1>
           <p class="hero-copy">
-            Start with a pod or log set, pick the analysis objective, refine with suggested
-            fields and values, and run the generated query locally.
+            Build scoped OCILA queries from an investigation goal, then run, explain, and reuse
+            them from one workspace.
           </p>
         </div>
         <div class="hero-status">
@@ -27,7 +27,7 @@
         <section class="panel controls">
           <div class="panel-title-row">
             <h2>Investigation Setup</h2>
-            <button id="refreshButton" class="secondary">Refresh Metadata</button>
+            <button id="refreshButton" class="secondary compact-button">Refresh Metadata</button>
           </div>
 
           <label>
@@ -151,14 +151,13 @@
           </label>
 
           <div class="action-row">
-            <button id="buildButton">Build Query</button>
+            <button id="buildButton" class="primary-action">Build Query</button>
             <button id="runButton" class="secondary">Run Query</button>
             <button id="saveQueryButton" class="secondary">Save Query</button>
           </div>
 
           <p class="helper-copy">
-            Visualization is stored as a local directive at the top of the query text and is removed
-            before the OCILA query is executed.
+            Choose a goal, build the query, then run it against the selected time window.
           </p>
 
           <div class="template-hint">
@@ -166,10 +165,14 @@
             <div id="suggestedFields" class="chip-row"></div>
           </div>
 
-          <div class="template-hint">
+          <details class="template-hint disclosure-section">
+            <summary>
+              <span>Custom Field Selection</span>
+              <span class="summary-note" id="fieldSummaryText"></span>
+            </summary>
             <div class="panel-title-row">
               <div class="title-with-help">
-                <h3>Custom Field Selection</h3>
+                <h3>Choose Output Fields</h3>
                 <button
                   type="button"
                   class="help-button"
@@ -179,9 +182,8 @@
                   ?
                 </button>
               </div>
-              <button id="applyFieldsButton" class="secondary">Apply Fields</button>
+              <button id="applyFieldsButton" class="secondary compact-button">Apply Fields</button>
             </div>
-            <p class="helper-copy" id="fieldSummaryText"></p>
             <label>
               Field search
               <input id="fieldSearchInput" placeholder="Search indexed or custom fields" />
@@ -201,9 +203,12 @@
             </label>
             <div id="selectedFields" class="chip-row empty-chip-row">No custom fields selected.</div>
             <div id="fieldCatalog" class="field-catalog"></div>
-          </div>
+          </details>
 
-          <div class="template-hint">
+          <details class="template-hint disclosure-section">
+            <summary>
+              <span>Sensitive Data Guidance</span>
+            </summary>
             <div class="title-with-help">
               <h3>Sensitive Data Guidance</h3>
               <button
@@ -216,7 +221,7 @@
               </button>
             </div>
             <div id="sensitiveDataNote" class="sensitive-note"></div>
-          </div>
+          </details>
         </section>
 
         <section class="panel workspace">
@@ -241,7 +246,7 @@
                     <button id="copyCliCommandButton" class="secondary">Copy CLI</button>
                   </div>
                 </div>
-                <div id="automationMeta" class="helper-copy">
+                <div id="automationMeta" class="helper-copy" aria-live="polite">
                   Build a query, then generate an API payload and OCI CLI command.
                 </div>
                 <label>
@@ -288,7 +293,7 @@
           </div>
 
           <div id="chartWrap" class="chart-wrap empty">Run a query to render a visualization.</div>
-          <div id="resultsMeta" class="results-meta"></div>
+          <div id="resultsMeta" class="results-meta" aria-live="polite"></div>
           <div id="resultsTableWrap" class="results-table-wrap empty">Run a query to see results.</div>
         </section>
       </main>

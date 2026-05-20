@@ -1663,6 +1663,7 @@ async function buildTemplateQuery() {
     els.visualizationSelect.value
   );
   renderTrainingGuide();
+  renderQueryAnalysis();
   refreshAutomationPanel({ silent: true });
   els.resultsMeta.textContent = currentTemplate()?.description || "";
 }
@@ -1720,6 +1721,7 @@ function applySelectedFields() {
     els.visualizationSelect.value
   );
   renderTrainingGuide();
+  renderQueryAnalysis();
   refreshAutomationPanel({ silent: true });
 }
 
