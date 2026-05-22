@@ -33,6 +33,21 @@ Local browser app for guided OCI Log Analytics investigations. The UI starts fro
 3. Install dependencies with `npm install`
 4. Start the app with `npm run dev`
 
+By default the backend binds to `127.0.0.1` only. Keep that default when the app has access to
+OCI credentials. If you deliberately expose the app on another interface with `HOST`, set
+`APP_ALLOWED_HOSTS` to the comma-separated hostnames that should be accepted by the API.
+
+## Security controls
+
+- API access is restricted to loopback hosts by default and checked against the request `Host` and
+  `Origin` headers
+- The server sends restrictive browser security headers, including a same-origin content security
+  policy and frame denial
+- API requests are rate-limited and JSON request bodies are capped
+- Template filter input is limited to a single filter expression so it cannot append extra pipeline
+  stages to generated queries
+- Backend errors are sanitized before they are returned to the browser
+
 ## OCI integration notes
 
 This project is wired to use the Oracle Cloud Infrastructure JavaScript SDK. You can authenticate in two ways:

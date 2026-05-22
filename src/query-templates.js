@@ -109,6 +109,12 @@ function buildLogSetClause(logSetInput) {
   if (!logSets.length) {
     return "";
   }
+  if (logSets.length > 20) {
+    throw new Error("logSet cannot contain more than 20 comma-separated values.");
+  }
+  if (logSets.some((item) => item.length > 160)) {
+    throw new Error("Each logSet value must be 160 characters or fewer.");
+  }
 
   if (logSets.length === 1) {
     return `'Log Set' = '${escapeQueryValue(logSets[0])}'`;

@@ -125,6 +125,8 @@ const els = {
   templateSelect: document.querySelector("#templateSelect"),
   fieldSelect: document.querySelector("#fieldSelect"),
   fieldValueInput: document.querySelector("#fieldValueInput"),
+  timePresetSelect: document.querySelector("#timePresetSelect"),
+  customTimeRange: document.querySelector("#customTimeRange"),
   timeSpanSelect: document.querySelector("#timeSpanSelect"),
   filterTextInput: document.querySelector("#filterTextInput"),
   visualizationSelect: document.querySelector("#visualizationSelect"),
@@ -163,7 +165,8 @@ const els = {
   resultsMeta: document.querySelector("#resultsMeta"),
   resultsTableWrap: document.querySelector("#resultsTableWrap"),
   timeStartInput: document.querySelector("#timeStartInput"),
-  timeEndInput: document.querySelector("#timeEndInput")
+  timeEndInput: document.querySelector("#timeEndInput"),
+  selectedInvestigationSummary: document.querySelector("#selectedInvestigationSummary")
 };
 
 function setStatus(text, mutedText) {
@@ -172,16 +175,58 @@ function setStatus(text, mutedText) {
 }
 
 function formatNowRange() {
+  applyTimePreset("1h");
+}
+
+function applyTimePreset(preset = els.timePresetSelect?.value || "1h") {
   const end = new Date();
-  const start = new Date(end.getTime() - 60 * 60 * 1000);
-  els.timeStartInput.value = toDateTimeLocalValue(start);
-  els.timeEndInput.value = toDateTimeLocalValue(end);
+  const hoursByPreset = {
+    "1h": 1,
+    "6h": 6,
+    "24h": 24
+  };
+  const selectedHours = hoursByPreset[preset] || 1;
+  const start = new Date(end.getTime() - selectedHours * 60 * 60 * 1000);
+
+  if (preset !== "custom") {
+    els.timeStartInput.value = toDateTimeLocalValue(start);
+    els.timeEndInput.value = toDateTimeLocalValue(end);
+  }
+
+  if (els.customTimeRange) {
+    els.customTimeRange.hidden = preset !== "custom";
+  }
+
+  updateSetupSummary();
 }
 
 function toDateTimeLocalValue(date) {
   const offset = date.getTimezoneOffset();
   const local = new Date(date.getTime() - offset * 60000);
   return local.toISOString().slice(0, 16);
+}
+
+function updateSetupSummary() {
+  if (!els.selectedInvestigationSummary) {
+    return;
+  }
+
+  const scope = els.logSetInput.value.trim() || "No scope selected";
+  const goal = currentTemplate()?.label || "No investigation selected";
+  const timeLabel = els.timePresetSelect?.selectedOptions?.[0]?.textContent || "Last hour";
+  els.selectedInvestigationSummary.textContent = `${goal} in ${scope}. Time range: ${timeLabel}.`;
+}
+
+function openSidePanel(panelName) {
+  document.querySelectorAll("[data-side-tab]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.sideTab === panelName);
+  });
+
+  document.querySelectorAll("[data-side-panel]").forEach((panel) => {
+    const isActive = panel.dataset.sidePanel === panelName;
+    panel.classList.toggle("active", isActive);
+    panel.hidden = !isActive;
+  });
 }
 
 function formatSavedAt(timestamp) {
@@ -1510,6 +1555,8 @@ function loadSavedQuery(id) {
   els.visualizationSelect.value = item.visualization || "table";
   els.timeStartInput.value = item.timeStart || els.timeStartInput.value;
   els.timeEndInput.value = item.timeEnd || els.timeEndInput.value;
+  els.timePresetSelect.value = "custom";
+  els.customTimeRange.hidden = false;
   state.selectedFields = [...(item.selectedFields || [])];
   els.queryEditor.value = item.queryText || "";
 
@@ -1519,6 +1566,7 @@ function loadSavedQuery(id) {
   syncVisualizationSelectionFromEditor();
   renderTrainingGuide();
   renderQueryAnalysis();
+  updateSetupSummary();
   refreshAutomationPanel({ silent: true });
   els.resultsMeta.textContent = `Loaded saved query from ${formatSavedAt(item.savedAt)}.`;
 }
@@ -1551,6 +1599,7 @@ function saveCurrentQuery(options = {}) {
   persistSavedQueries();
   renderHistory();
   if (!silent) {
+    openSidePanel("history");
     els.resultsMeta.textContent = `Saved query "${record.title}".`;
   }
 }
@@ -1639,10 +1688,12 @@ async function bootstrap() {
   renderQueryAnalysis();
   renderSensitiveDataNote();
   renderAutomationPanel();
+  updateSetupSummary();
   setStatus(state.mockMode ? "Mock Mode" : "OCI Mode", "Metadata ready");
 }
 
-async function buildTemplateQuery() {
+async function buildTemplateQuery(options = {}) {
+  const { silent = false } = options;
   const data = await fetchJson("/api/template-query", {
     method: "POST",
     body: JSON.stringify({
@@ -1665,7 +1716,10 @@ async function buildTemplateQuery() {
   renderTrainingGuide();
   renderQueryAnalysis();
   refreshAutomationPanel({ silent: true });
-  els.resultsMeta.textContent = currentTemplate()?.description || "";
+  updateSetupSummary();
+  if (!silent) {
+    els.resultsMeta.textContent = currentTemplate()?.description || "";
+  }
 }
 
 async function runCurrentQuery() {
@@ -1673,6 +1727,7 @@ async function runCurrentQuery() {
   els.resultsMeta.textContent = "Running query...";
 
   try {
+    await buildTemplateQuery({ silent: true });
     const queryText = stripVisualizationDirective(els.queryEditor.value).trim();
     const data = await fetchJson("/api/query", {
       method: "POST",
@@ -1690,7 +1745,7 @@ async function runCurrentQuery() {
     saveCurrentQuery({ silent: true });
   } catch (error) {
     els.resultsMeta.textContent = error.message;
-    renderChartMessage("Run a query to render a visualization.");
+    renderChartMessage("Run an investigation to render a visualization.");
     renderTable([], []);
   } finally {
     els.runButton.disabled = false;
@@ -1708,6 +1763,7 @@ async function suggestForEditor() {
   });
 
   renderSuggestions(data.suggestions || []);
+  openSidePanel("suggestions");
 }
 
 function applySelectedFields() {
@@ -1741,6 +1797,20 @@ els.refreshButton.addEventListener("click", async () => {
 els.templateSelect.addEventListener("change", () => {
   renderSuggestedFields(currentTemplate());
   renderTrainingGuide();
+  updateSetupSummary();
+});
+
+els.logSetInput.addEventListener("input", updateSetupSummary);
+els.timePresetSelect.addEventListener("change", () => {
+  applyTimePreset(els.timePresetSelect.value);
+});
+els.timeStartInput.addEventListener("change", updateSetupSummary);
+els.timeEndInput.addEventListener("change", updateSetupSummary);
+
+document.querySelectorAll("[data-side-tab]").forEach((button) => {
+  button.addEventListener("click", () => {
+    openSidePanel(button.dataset.sideTab);
+  });
 });
 
 document.querySelectorAll(".help-button").forEach((button) => {
@@ -1772,6 +1842,10 @@ els.fieldOptionFilter.addEventListener("change", renderFieldCatalog);
 els.buildButton.addEventListener("click", async () => {
   try {
     await buildTemplateQuery();
+    const queryInspector = document.querySelector(".query-inspector");
+    if (queryInspector) {
+      queryInspector.open = true;
+    }
   } catch (error) {
     els.resultsMeta.textContent = error.message;
   }
@@ -1806,7 +1880,7 @@ loadSavedQueries();
 scheduleHelpContentLoad();
 
 bootstrap()
-  .then(buildTemplateQuery)
+  .then(() => buildTemplateQuery({ silent: true }))
   .then(() => refreshAutomationPanel({ silent: true }))
   .catch((error) => {
     setStatus("Error", error.message);

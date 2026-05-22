@@ -11,10 +11,10 @@
       <header class="hero">
         <div>
           <p class="eyebrow">OCI Log Analytics</p>
-          <h1>Guided Query Builder</h1>
+          <h1>Investigation Workspace</h1>
           <p class="hero-copy">
-            Build scoped OCILA queries from an investigation goal, then run, explain, and reuse
-            them from one workspace.
+            Pick the system, choose the symptom, and run. The query and automation details stay
+            close by when you need them.
           </p>
         </div>
         <div class="hero-status">
@@ -26,13 +26,13 @@
       <main class="layout">
         <section class="panel controls">
           <div class="panel-title-row">
-            <h2>Investigation Setup</h2>
+            <h2>Start Here</h2>
             <button id="refreshButton" class="secondary compact-button">Refresh Metadata</button>
           </div>
 
           <label>
             <span class="label-row">
-              <span>Log set / pod</span>
+              <span>Where should we look?</span>
               <button
                 type="button"
                 class="help-button"
@@ -45,14 +45,14 @@
             <input
               id="logSetInput"
               list="logSetOptions"
-              placeholder="Type one or more pods, comma separated"
+              placeholder="Pod, log set, or environment"
             />
             <datalist id="logSetOptions"></datalist>
           </label>
 
           <label>
             <span class="label-row">
-              <span>Investigation goal</span>
+              <span>What are you investigating?</span>
               <button
                 type="button"
                 class="help-button"
@@ -67,103 +67,128 @@
 
           <label>
             <span class="label-row">
-              <span>Field for focused lookup</span>
-              <button
-                type="button"
-                class="help-button"
-                data-help-key="field"
-                aria-label="Help for focused lookup field"
-              >
-                ?
-              </button>
+              <span>When?</span>
             </span>
-            <select id="fieldSelect"></select>
-          </label>
-
-          <label>
-            <span class="label-row">
-              <span>Field value / endpoint / database ID</span>
-              <button
-                type="button"
-                class="help-button"
-                data-help-key="fieldValue"
-                aria-label="Help for field value"
-              >
-                ?
-              </button>
-            </span>
-            <input id="fieldValueInput" placeholder="Example: /fscmRestApi/resources/..." />
-          </label>
-
-          <label>
-            <span class="label-row">
-              <span>Time bucket</span>
-              <button
-                type="button"
-                class="help-button"
-                data-help-key="timeBucket"
-                aria-label="Help for time bucket"
-              >
-                ?
-              </button>
-            </span>
-            <select id="timeSpanSelect">
-              <option value="1minute">1 minute</option>
-              <option value="5minute">5 minutes</option>
-              <option value="15minute">15 minutes</option>
-              <option value="1hour">1 hour</option>
+            <select id="timePresetSelect">
+              <option value="1h">Last hour</option>
+              <option value="6h">Last 6 hours</option>
+              <option value="24h">Last 24 hours</option>
+              <option value="custom">Custom range</option>
             </select>
           </label>
 
-          <label>
-            <span class="label-row">
-              <span>Extra filter text</span>
-              <button
-                type="button"
-                class="help-button"
-                data-help-key="filterText"
-                aria-label="Help for extra filter text"
-              >
-                ?
-              </button>
-            </span>
-            <input id="filterTextInput" placeholder="Example: 'Log Source' = saas.fa_wls_access" />
-          </label>
-
-          <label>
-            <span class="label-row">
-              <span>Visualization</span>
-              <button
-                type="button"
-                class="help-button"
-                data-help-key="visualization"
-                aria-label="Help for visualization"
-              >
-                ?
-              </button>
-            </span>
-            <select id="visualizationSelect">
-              <option value="table">Table only</option>
-              <option value="line">Line chart</option>
-              <option value="bar">Bar chart</option>
-              <option value="metric">Metric cards</option>
-            </select>
-          </label>
-
-          <div class="action-row">
-            <button id="buildButton" class="primary-action">Build Query</button>
-            <button id="runButton" class="secondary">Run Query</button>
-            <button id="saveQueryButton" class="secondary">Save Query</button>
+          <div id="customTimeRange" class="time-range compact-time-range" hidden>
+            <label>
+              Start
+              <input id="timeStartInput" type="datetime-local" />
+            </label>
+            <label>
+              End
+              <input id="timeEndInput" type="datetime-local" />
+            </label>
           </div>
 
-          <p class="helper-copy">
-            Choose a goal, build the query, then run it against the selected time window.
-          </p>
+          <button id="runButton" class="primary-action">Run Investigation</button>
 
-          <div class="template-hint">
-            <h3>Suggested Fields</h3>
-            <div id="suggestedFields" class="chip-row"></div>
+          <div id="selectedInvestigationSummary" class="setup-summary helper-copy">
+            Ready when metadata finishes loading.
           </div>
+
+          <details class="template-hint disclosure-section">
+            <summary>
+              <span>Refine Investigation</span>
+            </summary>
+
+            <label>
+              <span class="label-row">
+                <span>Optional target</span>
+                <button
+                  type="button"
+                  class="help-button"
+                  data-help-key="fieldValue"
+                  aria-label="Help for field value"
+                >
+                  ?
+                </button>
+              </span>
+              <input id="fieldValueInput" placeholder="Endpoint, database ID, host, user, or other value" />
+            </label>
+
+            <label>
+              <span class="label-row">
+                <span>Target field</span>
+                <button
+                  type="button"
+                  class="help-button"
+                  data-help-key="field"
+                  aria-label="Help for focused lookup field"
+                >
+                  ?
+                </button>
+              </span>
+              <select id="fieldSelect"></select>
+            </label>
+
+            <label>
+              <span class="label-row">
+                <span>Time bucket</span>
+                <button
+                  type="button"
+                  class="help-button"
+                  data-help-key="timeBucket"
+                  aria-label="Help for time bucket"
+                >
+                  ?
+                </button>
+              </span>
+              <select id="timeSpanSelect">
+                <option value="1minute">1 minute</option>
+                <option value="5minute">5 minutes</option>
+                <option value="15minute">15 minutes</option>
+                <option value="1hour">1 hour</option>
+              </select>
+            </label>
+
+            <label>
+              <span class="label-row">
+                <span>Advanced filter</span>
+                <button
+                  type="button"
+                  class="help-button"
+                  data-help-key="filterText"
+                  aria-label="Help for extra filter text"
+                >
+                  ?
+                </button>
+              </span>
+              <input id="filterTextInput" placeholder="Example: 'Log Source' = saas.fa_wls_access" />
+            </label>
+
+            <label>
+              <span class="label-row">
+                <span>View results as</span>
+                <button
+                  type="button"
+                  class="help-button"
+                  data-help-key="visualization"
+                  aria-label="Help for visualization"
+                >
+                  ?
+                </button>
+              </span>
+              <select id="visualizationSelect">
+                <option value="table">Table only</option>
+                <option value="line">Line chart</option>
+                <option value="bar">Bar chart</option>
+                <option value="metric">Metric cards</option>
+              </select>
+            </label>
+
+            <div>
+              <h3>Suggested Fields</h3>
+              <div id="suggestedFields" class="chip-row"></div>
+            </div>
+          </details>
 
           <details class="template-hint disclosure-section">
             <summary>
@@ -225,76 +250,89 @@
         </section>
 
         <section class="panel workspace">
-          <div class="workspace-grid">
-            <div>
-              <div class="panel-title-row">
-                <h2>Generated Query</h2>
-                <div class="action-row">
-                  <button id="copyQueryButton" class="secondary">Copy Query</button>
-                  <button id="refreshAutomationButton" class="secondary">Build API / CLI</button>
-                  <button id="analyzeQueryButton" class="secondary">Explain Query</button>
-                  <button id="suggestButton" class="secondary">Suggest Fields / Values</button>
-                </div>
-              </div>
-              <textarea id="queryEditor" spellcheck="false"></textarea>
-              <div id="queryAnalysis" class="help-card"></div>
-              <div class="panel-subsection">
-                <div class="panel-title-row">
-                  <h2>Automation</h2>
-                  <div class="action-row">
-                    <button id="copyApiPayloadButton" class="secondary">Copy Payload</button>
-                    <button id="copyCliCommandButton" class="secondary">Copy CLI</button>
-                  </div>
-                </div>
-                <div id="automationMeta" class="helper-copy" aria-live="polite">
-                  Build a query, then generate an API payload and OCI CLI command.
-                </div>
-                <label>
-                  API payload
-                  <textarea id="apiPayloadOutput" class="mini-output" spellcheck="false" readonly></textarea>
-                </label>
-                <label>
-                  OCI CLI command
-                  <textarea id="cliCommandOutput" class="mini-output" spellcheck="false" readonly></textarea>
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <h2>Suggestions</h2>
-              <div id="suggestions" class="suggestion-list empty">Suggestions will appear here.</div>
-              <div class="panel-subsection">
-                <div class="panel-title-row">
-                  <h2>Saved Queries</h2>
-                  <button id="clearHistoryButton" class="secondary">Clear</button>
-                </div>
-                <div id="historyList" class="history-list empty">Saved queries will appear here.</div>
-              </div>
-              <div class="panel-subsection">
-                <h2>Training Guide</h2>
-                <div id="templateHelp" class="help-card"></div>
-                <div id="glossaryHelp" class="help-card"></div>
-              </div>
-            </div>
-          </div>
-
           <div class="result-header">
-            <h2>Results</h2>
-            <div class="time-range">
-              <label>
-                Start
-                <input id="timeStartInput" type="datetime-local" />
-              </label>
-              <label>
-                End
-                <input id="timeEndInput" type="datetime-local" />
-              </label>
+            <div>
+              <h2>Results</h2>
+              <p id="resultsMeta" class="results-meta" aria-live="polite"></p>
+            </div>
+            <div class="action-row">
+              <button id="buildButton" class="secondary">Preview Query</button>
+              <button id="saveQueryButton" class="secondary">Save</button>
             </div>
           </div>
 
-          <div id="chartWrap" class="chart-wrap empty">Run a query to render a visualization.</div>
-          <div id="resultsMeta" class="results-meta" aria-live="polite"></div>
-          <div id="resultsTableWrap" class="results-table-wrap empty">Run a query to see results.</div>
+          <div id="chartWrap" class="chart-wrap empty">Run an investigation to render a visualization.</div>
+          <div id="resultsTableWrap" class="results-table-wrap empty">Results will appear here.</div>
+
+          <details class="query-inspector disclosure-section">
+            <summary>
+              <span>Query Inspector</span>
+            </summary>
+            <div class="panel-title-row">
+              <h2>Generated Query</h2>
+              <div class="action-row">
+                <button id="copyQueryButton" class="secondary">Copy Query</button>
+                <button id="analyzeQueryButton" class="secondary">Explain</button>
+                <button id="suggestButton" class="secondary">Suggest</button>
+              </div>
+            </div>
+            <textarea id="queryEditor" spellcheck="false"></textarea>
+            <div id="queryAnalysis" class="help-card"></div>
+
+            <details class="panel-subsection disclosure-section">
+              <summary>
+                <span>Export / Automate</span>
+              </summary>
+              <div class="panel-title-row">
+                <h2>Automation</h2>
+                <div class="action-row">
+                  <button id="refreshAutomationButton" class="secondary">Refresh</button>
+                  <button id="copyApiPayloadButton" class="secondary">Copy Payload</button>
+                  <button id="copyCliCommandButton" class="secondary">Copy CLI</button>
+                </div>
+              </div>
+              <div id="automationMeta" class="helper-copy" aria-live="polite">
+                Build a query, then generate an API payload and OCI CLI command.
+              </div>
+              <label>
+                API payload
+                <textarea id="apiPayloadOutput" class="mini-output" spellcheck="false" readonly></textarea>
+              </label>
+              <label>
+                OCI CLI command
+                <textarea id="cliCommandOutput" class="mini-output" spellcheck="false" readonly></textarea>
+              </label>
+            </details>
+          </details>
+
+          <aside class="side-panel">
+            <div class="tab-list" role="tablist" aria-label="Investigation support">
+              <button class="tab-button active" type="button" data-side-tab="guide">Guide</button>
+              <button class="tab-button" type="button" data-side-tab="suggestions">Suggestions</button>
+              <button class="tab-button" type="button" data-side-tab="history">History</button>
+            </div>
+
+            <div class="tab-panel active" data-side-panel="guide">
+              <h2>Guide</h2>
+              <div id="templateHelp" class="help-card"></div>
+              <div id="glossaryHelp" class="help-card"></div>
+            </div>
+
+            <div class="tab-panel" data-side-panel="suggestions" hidden>
+              <div class="panel-title-row">
+                <h2>Suggestions</h2>
+              </div>
+              <div id="suggestions" class="suggestion-list empty">Suggestions will appear here.</div>
+            </div>
+
+            <div class="tab-panel" data-side-panel="history" hidden>
+              <div class="panel-title-row">
+                <h2>Saved Queries</h2>
+                <button id="clearHistoryButton" class="secondary">Clear</button>
+              </div>
+              <div id="historyList" class="history-list empty">Saved queries will appear here.</div>
+            </div>
+          </aside>
         </section>
       </main>
     </div>

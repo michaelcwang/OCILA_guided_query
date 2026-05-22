@@ -16,6 +16,11 @@ function resolveMaybeHome(input) {
 
 export const appConfig = {
   port: Number(process.env.PORT || 4310),
+  host: process.env.HOST || "127.0.0.1",
+  allowedHosts: (process.env.APP_ALLOWED_HOSTS || "")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean),
   mockMode: String(process.env.MOCK_MODE || "true").toLowerCase() === "true",
   authMode: process.env.OCI_AUTH_MODE || "config",
   region: process.env.OCI_REGION || "",
